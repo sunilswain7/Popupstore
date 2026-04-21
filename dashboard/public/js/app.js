@@ -1,41 +1,223 @@
 let eventSource = null;
+let parsedSpec = null;
 
-// Submit drop form
+// ── Step 1: Parse natural language ──
 document.getElementById('dropForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const input = document.getElementById('dropInput').value.trim();
   if (!input) return;
 
-  const btn = document.getElementById('submitBtn');
+  const btn = document.getElementById('parseBtn');
   btn.disabled = true;
-  btn.textContent = 'Launching...';
-
-  const pipeline = document.getElementById('pipeline');
-  const events = document.getElementById('events');
-  pipeline.classList.remove('hidden');
-  events.innerHTML = '';
+  btn.textContent = 'Parsing...';
 
   try {
-    const res = await fetch('/api/drops', {
+    const res = await fetch('/api/drops/parse', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ input }),
     });
     const data = await res.json();
 
-    if (data.storeId) {
-      addEvent('info', `Pipeline started for drop ${data.storeId.substring(0, 8)}...`);
-      connectSSE(data.storeId);
+    if (data.error && !data.spec) {
+      alert('Parse failed: ' + (data.error || 'Unknown error'));
+      return;
     }
-  } catch (err) {
-    addEvent('error', `Failed: ${err.message}`);
-  }
 
-  btn.disabled = false;
-  btn.textContent = 'Launch Drop';
-  document.getElementById('dropInput').value = '';
+    parsedSpec = data.spec || { items: [], dropName: '', endDate: null, postDropAction: 'SOLD_OUT_PAGE' };
+    showReviewForm(parsedSpec, data.errors || []);
+  } catch (err) {
+    alert('Failed to parse: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Parse Drop';
+  }
 });
 
+// ── Step 2: Review form ──
+function showReviewForm(spec, errors) {
+  document.getElementById('step1').classList.add('hidden');
+  document.getElementById('step2').classList.remove('hidden');
+
+  // Populate fields
+  document.getElementById('reviewDropName').value = spec.dropName || '';
+  document.getElementById('reviewPostDrop').value = spec.postDropAction || 'SOLD_OUT_PAGE';
+
+  // Convert ISO date to datetime-local format
+  if (spec.endDate) {
+    const d = new Date(spec.endDate);
+    if (!isNaN(d.getTime())) {
+      const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+      document.getElementById('reviewEndDate').value = local;
+    }
+  } else {
+    document.getElementById('reviewEndDate').value = '';
+  }
+
+  renderItems(spec.items || []);
+  showFieldErrors(errors);
+}
+
+function renderItems(items) {
+  const container = document.getElementById('reviewItems');
+  if (items.length === 0) {
+    items.push({ productName: '', price: null, inventory: null, generateImage: false, imagePrompt: null });
+  }
+
+  container.innerHTML = items.map((item, i) => `
+    <div class="item-form" data-index="${i}">
+      <div class="item-form-header">
+        <span>Item ${i + 1}</span>
+        ${items.length > 1 ? `<button type="button" class="btn-remove-item" onclick="removeItem(${i})">Remove</button>` : ''}
+      </div>
+      <div class="item-fields">
+        <div class="form-group">
+          <label>Product Name</label>
+          <input type="text" class="item-name" value="${escapeAttr(item.productName || '')}" placeholder="e.g. Signed Art Print">
+          <span class="field-error" id="err-items-${i}-productName"></span>
+        </div>
+        <div class="form-group-row">
+          <div class="form-group">
+            <label>Price (USDC)</label>
+            <input type="number" class="item-price" value="${item.price || ''}" placeholder="25.00" step="0.01" min="0.01">
+            <span class="field-error" id="err-items-${i}-price"></span>
+          </div>
+          <div class="form-group">
+            <label>Inventory</label>
+            <input type="number" class="item-inventory" value="${item.inventory || ''}" placeholder="100" step="1" min="1">
+            <span class="field-error" id="err-items-${i}-inventory"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function removeItem(index) {
+  const items = collectItemsFromForm();
+  items.splice(index, 1);
+  renderItems(items);
+}
+
+document.getElementById('addItemBtn').addEventListener('click', () => {
+  const items = collectItemsFromForm();
+  items.push({ productName: '', price: null, inventory: null, generateImage: false, imagePrompt: null });
+  renderItems(items);
+});
+
+function collectItemsFromForm() {
+  const forms = document.querySelectorAll('.item-form');
+  return Array.from(forms).map(form => ({
+    productName: form.querySelector('.item-name').value.trim(),
+    price: parseFloat(form.querySelector('.item-price').value) || null,
+    inventory: parseInt(form.querySelector('.item-inventory').value, 10) || null,
+    generateImage: false,
+    imagePrompt: null,
+  }));
+}
+
+function collectSpecFromForm() {
+  const endDateInput = document.getElementById('reviewEndDate').value;
+  let endDate = null;
+  if (endDateInput) {
+    endDate = new Date(endDateInput).toISOString();
+  }
+
+  return {
+    dropName: document.getElementById('reviewDropName').value.trim(),
+    endDate,
+    postDropAction: document.getElementById('reviewPostDrop').value,
+    items: collectItemsFromForm(),
+  };
+}
+
+function showFieldErrors(errors) {
+  // Clear all previous errors
+  document.querySelectorAll('.field-error').forEach(el => el.textContent = '');
+  document.querySelectorAll('.form-group input, .form-group select').forEach(el => el.classList.remove('input-error'));
+
+  for (const err of errors) {
+    // Map field paths to error element IDs
+    let errId = null;
+    if (err.field === 'dropName') errId = 'err-dropName';
+    else if (err.field === 'endDate') errId = 'err-endDate';
+    else if (err.field === 'postDropAction') errId = 'err-postDropAction';
+    else if (err.field === 'items') errId = null; // general items error
+    else {
+      // items[0].price → err-items-0-price
+      const match = err.field.match(/items\[(\d+)\]\.(\w+)/);
+      if (match) errId = `err-items-${match[1]}-${match[2]}`;
+    }
+
+    if (errId) {
+      const el = document.getElementById(errId);
+      if (el) {
+        el.textContent = err.message;
+        const input = el.previousElementSibling;
+        if (input) input.classList.add('input-error');
+      }
+    }
+  }
+}
+
+// Back button
+document.getElementById('backBtn').addEventListener('click', () => {
+  document.getElementById('step2').classList.add('hidden');
+  document.getElementById('step1').classList.remove('hidden');
+});
+
+// ── Confirm & Launch ──
+document.getElementById('confirmBtn').addEventListener('click', async () => {
+  const spec = collectSpecFromForm();
+  const btn = document.getElementById('confirmBtn');
+  btn.disabled = true;
+  btn.textContent = 'Launching...';
+
+  // Clear old errors
+  document.querySelectorAll('.field-error').forEach(el => el.textContent = '');
+
+  try {
+    const res = await fetch('/api/drops/confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ spec }),
+    });
+    const data = await res.json();
+
+    if (data.errors && data.errors.length > 0) {
+      showFieldErrors(data.errors);
+      btn.disabled = false;
+      btn.textContent = 'Confirm & Launch';
+      return;
+    }
+
+    if (data.error && !data.storeId) {
+      alert(data.error);
+      btn.disabled = false;
+      btn.textContent = 'Confirm & Launch';
+      return;
+    }
+
+    // Success — show pipeline
+    document.getElementById('step2').classList.add('hidden');
+    document.getElementById('step1').classList.remove('hidden');
+    document.getElementById('dropInput').value = '';
+
+    const pipeline = document.getElementById('pipeline');
+    const events = document.getElementById('events');
+    pipeline.classList.remove('hidden');
+    events.innerHTML = '';
+    addEvent('success', `Drop confirmed! Pipeline started (${data.storeId.substring(0, 8)}...)`);
+    connectSSE(data.storeId);
+  } catch (err) {
+    alert('Failed: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Confirm & Launch';
+  }
+});
+
+// ── SSE for pipeline progress ──
 function connectSSE(storeId) {
   if (eventSource) eventSource.close();
   eventSource = new EventSource(`/events/${storeId}`);
@@ -88,7 +270,7 @@ function addEvent(type, message) {
   events.scrollTop = events.scrollHeight;
 }
 
-// Stores list
+// ── Stores list ──
 async function loadStores() {
   try {
     const res = await fetch('/api/stores');
@@ -120,7 +302,7 @@ function renderStores(stores) {
   }).join('');
 }
 
-// Store detail modal
+// ── Store detail modal ──
 async function showStore(id) {
   try {
     const res = await fetch(`/api/stores/${id}`);
@@ -217,6 +399,10 @@ function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str || '';
   return div.innerHTML;
+}
+
+function escapeAttr(str) {
+  return String(str || '').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 // Initial load + global SSE

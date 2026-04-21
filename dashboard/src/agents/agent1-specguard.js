@@ -4,28 +4,43 @@ const { emit } = require('../lib/sse');
 
 const VALID_POST_DROP_ACTIONS = ['WAITLIST', 'SOLD_OUT_PAGE', 'TEARDOWN'];
 
-async function runSpecGuard(rawInput, storeId) {
-  emit('agent1:start', { message: 'Parsing your drop description...' }, storeId);
-
+// Parse-only: returns spec + field-level errors for user review
+async function parseInput(rawInput) {
   let spec;
   try {
     spec = await extractSpec(rawInput);
   } catch (err) {
-    const result = { status: 'BLOCKED', reason: `LLM extraction failed: ${err.message}`, spec: null };
-    emit('agent1:blocked', result, storeId);
-    return result;
-  }
-
-  // Validate
-  const error = validateSpec(spec);
-  if (error) {
-    const result = { status: 'BLOCKED', reason: error, spec };
-    emit('agent1:blocked', result, storeId);
-    return result;
+    return { spec: null, errors: [{ field: '_general', message: `LLM extraction failed: ${err.message}` }] };
   }
 
   // Defaults
   if (!spec.postDropAction) spec.postDropAction = 'SOLD_OUT_PAGE';
+  if (!spec.items) spec.items = [];
+
+  const errors = validateSpecFields(spec);
+  return { spec, errors };
+}
+
+// Validate a confirmed spec (final gate before builder)
+function validateConfirmedSpec(spec) {
+  const errors = validateSpecFields(spec);
+  if (errors.length > 0) {
+    return { status: 'BLOCKED', reason: errors.map(e => e.message).join('; '), spec, errors };
+  }
+  return { status: 'APPROVED', reason: null, spec, errors: [] };
+}
+
+// Legacy: full run (parse + validate + emit SSE)
+async function runSpecGuard(rawInput, storeId) {
+  emit('agent1:start', { message: 'Parsing your drop description...' }, storeId);
+
+  const { spec, errors } = await parseInput(rawInput);
+  if (!spec || errors.length > 0) {
+    const reason = errors.map(e => e.message).join('; ');
+    const result = { status: 'BLOCKED', reason, spec, errors };
+    emit('agent1:blocked', result, storeId);
+    return result;
+  }
 
   const result = { status: 'APPROVED', reason: null, spec };
   emit('agent1:complete', result, storeId);
@@ -168,9 +183,13 @@ function mockExtract(rawInput) {
   return { dropName, items, endDate, postDropAction };
 }
 
-function validateSpec(spec) {
+// Returns array of field-level errors (empty = valid)
+function validateSpecFields(spec) {
+  const errors = [];
+
   if (!spec.items || !Array.isArray(spec.items) || spec.items.length === 0) {
-    return 'No items found in your description';
+    errors.push({ field: 'items', message: 'Add at least one item to your drop' });
+    return errors; // can't validate items if none exist
   }
 
   for (let i = 0; i < spec.items.length; i++) {
@@ -178,46 +197,49 @@ function validateSpec(spec) {
     const prefix = spec.items.length > 1 ? `Item ${i + 1}: ` : '';
 
     if (!item.productName || item.productName.trim().length === 0) {
-      return `${prefix}Missing product name`;
-    }
-    if (item.productName.length > 100) {
-      return `${prefix}Product name must be under 100 characters`;
+      errors.push({ field: `items[${i}].productName`, message: `${prefix}Product name is required` });
+    } else if (item.productName.length > 100) {
+      errors.push({ field: `items[${i}].productName`, message: `${prefix}Product name must be under 100 characters` });
     }
     if (item.price === null || item.price === undefined || item.price <= 0) {
-      return `${prefix}Invalid price`;
+      errors.push({ field: `items[${i}].price`, message: `${prefix}Price is required (must be > 0)` });
     }
     if (item.inventory === null || item.inventory === undefined || item.inventory <= 0 || !Number.isInteger(item.inventory)) {
-      return `${prefix}Invalid inventory`;
-    }
-    if (item.inventory > 10000) {
-      return `${prefix}Inventory cannot exceed 10,000`;
+      errors.push({ field: `items[${i}].inventory`, message: `${prefix}Inventory count is required (whole number > 0)` });
+    } else if (item.inventory > 10000) {
+      errors.push({ field: `items[${i}].inventory`, message: `${prefix}Inventory cannot exceed 10,000` });
     }
   }
 
   if (!spec.dropName || spec.dropName.trim().length === 0) {
-    spec.dropName = spec.items.map(i => i.productName).join(' & ') + ' Drop';
+    // Auto-derive instead of erroring
+    if (spec.items.length > 0 && spec.items[0].productName) {
+      spec.dropName = spec.items.map(i => i.productName || 'Product').join(' & ') + ' Drop';
+    } else {
+      errors.push({ field: 'dropName', message: 'Drop name is required' });
+    }
   }
 
   if (!spec.endDate) {
-    return 'Missing end date';
+    errors.push({ field: 'endDate', message: 'End date/time is required (e.g. "2 hours", "Sunday")' });
+  } else {
+    const endDateObj = new Date(spec.endDate);
+    if (isNaN(endDateObj.getTime())) {
+      errors.push({ field: 'endDate', message: 'Invalid date format' });
+    } else if (endDateObj.getTime() <= Date.now()) {
+      errors.push({ field: 'endDate', message: 'End date must be in the future' });
+    } else if (endDateObj.getTime() - Date.now() < 5 * 60 * 1000) {
+      errors.push({ field: 'endDate', message: 'Drop must be at least 5 minutes long' });
+    } else if (endDateObj.getTime() - Date.now() > 365 * 24 * 60 * 60 * 1000) {
+      errors.push({ field: 'endDate', message: 'Drop cannot exceed 1 year' });
+    }
   }
-  const endDateObj = new Date(spec.endDate);
-  if (isNaN(endDateObj.getTime())) {
-    return 'Invalid end date format';
-  }
-  if (endDateObj.getTime() <= Date.now()) {
-    return 'End date must be in the future';
-  }
-  if (endDateObj.getTime() - Date.now() < 5 * 60 * 1000) {
-    return 'Drop must be at least 5 minutes long';
-  }
-  if (endDateObj.getTime() - Date.now() > 365 * 24 * 60 * 60 * 1000) {
-    return 'Drop cannot exceed 1 year';
-  }
+
   if (spec.postDropAction && !VALID_POST_DROP_ACTIONS.includes(spec.postDropAction)) {
-    return `Invalid postDropAction. Must be one of: ${VALID_POST_DROP_ACTIONS.join(', ')}`;
+    errors.push({ field: 'postDropAction', message: `Must be one of: ${VALID_POST_DROP_ACTIONS.join(', ')}` });
   }
-  return null;
+
+  return errors;
 }
 
-module.exports = { runSpecGuard };
+module.exports = { runSpecGuard, parseInput, validateConfirmedSpec };

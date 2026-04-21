@@ -1,28 +1,51 @@
 const { Router } = require('express');
 const prisma = require('../lib/db');
-const { runSpecGuard } = require('../agents/agent1-specguard');
+const { parseInput, validateConfirmedSpec } = require('../agents/agent1-specguard');
 const { runBuilder } = require('../agents/agent2-builder');
 const { scheduleExpiry } = require('../agents/agent3-lifecycle');
+const { emit } = require('../lib/sse');
 const { v4: uuidv4 } = require('uuid');
 
 const router = Router();
 
-// Create a new drop
-router.post('/drops', async (req, res) => {
+// Step 1: Parse natural language → structured spec + validation errors
+router.post('/drops/parse', async (req, res) => {
   const { input } = req.body;
   if (!input || typeof input !== 'string' || input.trim().length === 0) {
-    return res.status(400).json({ error: 'Missing input' });
+    return res.status(400).json({ error: 'Please describe your drop' });
+  }
+
+  try {
+    const { spec, errors } = await parseInput(input.trim());
+    res.json({ spec, errors });
+  } catch (err) {
+    console.error('[Parse] Error:', err.message);
+    res.status(500).json({ error: 'Failed to parse input', details: err.message });
+  }
+});
+
+// Step 2: User reviewed/corrected spec → validate final + launch pipeline
+router.post('/drops/confirm', async (req, res) => {
+  const { spec } = req.body;
+  if (!spec) {
+    return res.status(400).json({ error: 'Missing spec' });
+  }
+
+  // Final validation on the user-corrected spec
+  const result = validateConfirmedSpec(spec);
+  if (result.status !== 'APPROVED') {
+    return res.status(400).json({ error: 'Spec has errors', errors: result.errors });
   }
 
   const storeId = uuidv4();
   res.json({ storeId, message: 'Pipeline started' });
 
+  // Run builder + lifecycle async
   (async () => {
     try {
-      const specResult = await runSpecGuard(input.trim(), storeId);
-      if (specResult.status !== 'APPROVED') return;
-      await runBuilder(specResult, storeId);
-      scheduleExpiry(storeId, specResult.spec.endDate);
+      emit('agent1:complete', { status: 'APPROVED', spec }, storeId);
+      await runBuilder({ status: 'APPROVED', spec }, storeId);
+      scheduleExpiry(storeId, spec.endDate);
     } catch (err) {
       console.error(`[Pipeline] Error for ${storeId}:`, err.message);
     }

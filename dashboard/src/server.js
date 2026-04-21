@@ -21,7 +21,9 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health check — must come before static middleware
+// Health check
+app.get('/health', (req, res) => res.send('healthy'));
+
 app.get('/', (req, res) => {
   if (req.headers.accept?.includes('text/html')) {
     return res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));

@@ -13,18 +13,61 @@
       <p class="subtitle">Autonomous USDC Storefronts</p>
     </header>
 
-    <!-- Create Drop -->
-    <section class="create-section">
+    <!-- Step 1: Describe Drop -->
+    <section class="create-section" id="step1">
       <h2>Create a Drop</h2>
       <form id="dropForm">
-        <textarea id="dropInput" placeholder='Describe your drop... e.g. "Selling 20 signed prints at $25, drop ends Sunday"' rows="3"></textarea>
-        <button type="submit" id="submitBtn">Launch Drop</button>
+        <textarea id="dropInput" placeholder='Describe your drop... e.g. "Selling 20 signed prints at $25 and 50 stickers at $5, drop ends Sunday"' rows="3"></textarea>
+        <button type="submit" id="parseBtn">Parse Drop</button>
       </form>
-      <div id="pipeline" class="pipeline hidden">
-        <h3>Pipeline</h3>
-        <div id="events"></div>
+    </section>
+
+    <!-- Step 2: Review & Edit Parsed Spec -->
+    <section class="review-section hidden" id="step2">
+      <h2>Review Your Drop</h2>
+      <p class="review-subtitle">We parsed your description. Review and fix any issues below.</p>
+
+      <div class="review-form">
+        <div class="form-group">
+          <label for="reviewDropName">Drop Name</label>
+          <input type="text" id="reviewDropName" placeholder="e.g. Art Print Drop">
+          <span class="field-error" id="err-dropName"></span>
+        </div>
+
+        <div class="form-group">
+          <label for="reviewEndDate">End Date & Time</label>
+          <input type="datetime-local" id="reviewEndDate">
+          <span class="field-error" id="err-endDate"></span>
+        </div>
+
+        <div class="form-group">
+          <label for="reviewPostDrop">After Sold Out / Expired</label>
+          <select id="reviewPostDrop">
+            <option value="SOLD_OUT_PAGE">Show "Sold Out" page</option>
+            <option value="WAITLIST">Show waitlist signup</option>
+            <option value="TEARDOWN">Tear down storefront</option>
+          </select>
+          <span class="field-error" id="err-postDropAction"></span>
+        </div>
+
+        <div id="reviewItems">
+          <!-- Items rendered by JS -->
+        </div>
+
+        <button type="button" class="btn-add-item" id="addItemBtn">+ Add Item</button>
+
+        <div class="review-actions">
+          <button type="button" class="btn btn-secondary" id="backBtn">Back</button>
+          <button type="button" class="btn btn-primary" id="confirmBtn">Confirm & Launch</button>
+        </div>
       </div>
     </section>
+
+    <!-- Pipeline Progress -->
+    <div id="pipeline" class="pipeline hidden">
+      <h3>Pipeline</h3>
+      <div id="events"></div>
+    </div>
 
     <!-- Stores List -->
     <section class="stores-section">
