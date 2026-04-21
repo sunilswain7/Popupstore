@@ -1,0 +1,49 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Store {
+  id                  String   @id @default(uuid())
+  status              String   @default("PENDING")
+  productName         String   @map("product_name")
+  priceUsdc           Float    @map("price_usdc")
+  inventoryTotal      Int      @map("inventory_total")
+  inventoryRemaining  Int      @map("inventory_remaining")
+  endDate             DateTime @map("end_date")
+  postDropAction      String   @map("post_drop_action")
+  imageUrl            String?  @map("image_url")
+  checkoutSessionId   String?  @map("checkout_session_id")
+  locusProjectId      String?  @map("locus_project_id")
+  locusServiceId      String?  @map("locus_service_id")
+  locusServiceUrl     String?  @map("locus_service_url")
+  locusDeploymentId   String?  @map("locus_deployment_id")
+  createdAt           DateTime @default(now()) @map("created_at")
+  activatedAt         DateTime? @map("activated_at")
+  soldOutAt           DateTime? @map("sold_out_at")
+  archivedAt          DateTime? @map("archived_at")
+  deletedAt           DateTime? @map("deleted_at")
+
+  transactions Transaction[]
+
+  @@map("stores")
+}
+
+model Transaction {
+  id             String   @id @default(uuid())
+  storeId        String   @map("store_id")
+  amountUsdc     Float    @map("amount_usdc")
+  buyerAddress   String?  @map("buyer_address")
+  txHash         String?  @map("tx_hash")
+  status         String   @default("PENDING")
+  webhookEventId String?  @unique @map("webhook_event_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  store Store @relation(fields: [storeId], references: [id])
+
+  @@map("transactions")
+}

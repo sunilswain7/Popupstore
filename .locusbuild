@@ -1,0 +1,35 @@
+{
+  "services": [
+    {
+      "name": "dashboard",
+      "root": "dashboard",
+      "runtime": {
+        "port": 8080,
+        "cpu": 256,
+        "memory": 512,
+        "minInstances": 1,
+        "maxInstances": 1
+      },
+      "healthCheckPath": "/",
+      "env": {
+        "MOCK_LOCUS_API": "false",
+        "LOCUS_API_KEY": "${{LOCUS_API_KEY}}",
+        "WEBHOOK_SECRET": "${{WEBHOOK_SECRET}}",
+        "STOREFRONT_REPO": "sunilswain7/Popupstore",
+        "STOREFRONT_REPO_BRANCH": "main"
+      }
+    },
+    {
+      "name": "storefront",
+      "root": "storefront",
+      "runtime": {
+        "port": 8080,
+        "cpu": 256,
+        "memory": 512,
+        "minInstances": 1,
+        "maxInstances": 1
+      },
+      "healthCheckPath": "/"
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PopupStore Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>PopupStore</h1>
+      <p class="subtitle">Autonomous USDC Storefronts</p>
+    </header>
+
+    <!-- Create Drop -->
+    <section class="create-section">
+      <h2>Create a Drop</h2>
+      <form id="dropForm">
+        <textarea id="dropInput" placeholder='Describe your drop... e.g. "Selling 20 signed prints at $25, drop ends Sunday"' rows="3"></textarea>
+        <button type="submit" id="submitBtn">Launch Drop</button>
+      </form>
+      <div id="pipeline" class="pipeline hidden">
+        <h3>Pipeline</h3>
+        <div id="events"></div>
+      </div>
+    </section>
+
+    <!-- Stores List -->
+    <section class="stores-section">
+      <h2>Your Drops</h2>
+      <div id="storesList" class="stores-list">
+        <p class="empty">No drops yet. Create one above!</p>
+      </div>
+    </section>
+
+    <!-- Store Detail Modal -->
+    <div id="storeModal" class="modal hidden">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+        <div id="storeDetail"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>
