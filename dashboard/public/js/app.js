@@ -25,7 +25,15 @@ document.getElementById('dropForm').addEventListener('submit', async (e) => {
     }
 
     parsedSpec = data.spec || { items: [], dropName: '', endDate: null, postDropAction: 'SOLD_OUT_PAGE' };
-    showReviewForm(parsedSpec, data.errors || []);
+    const errors = data.errors || [];
+
+    if (errors.length === 0) {
+      // No errors — skip review, launch directly
+      launchPipeline(parsedSpec);
+    } else {
+      // Has errors — show review form for user to fix
+      showReviewForm(parsedSpec, errors);
+    }
   } catch (err) {
     alert('Failed to parse: ' + err.message);
   } finally {
@@ -34,16 +42,62 @@ document.getElementById('dropForm').addEventListener('submit', async (e) => {
   }
 });
 
-// ── Step 2: Review form ──
+// ── Launch pipeline (confirm spec and start agents) ──
+async function launchPipeline(spec) {
+  // Hide input, show chatbox
+  document.getElementById('step1').classList.add('hidden');
+  document.getElementById('step2').classList.add('hidden');
+
+  const pipeline = document.getElementById('pipeline');
+  const events = document.getElementById('events');
+  pipeline.classList.remove('hidden');
+  events.innerHTML = '';
+  document.getElementById('pipelineStatus').textContent = 'Starting...';
+
+  addChat('system', 'Spec looks good! Launching pipeline...');
+  addChat('agent1', `Drop: ${escapeHtml(spec.dropName)}`);
+  addChat('agent1', `Items: ${spec.items.map(i => `${i.productName} ($${i.price} x${i.inventory})`).join(', ')}`);
+  addChat('agent1', `Ends: ${new Date(spec.endDate).toLocaleString()}`);
+
+  try {
+    const res = await fetch('/api/drops/confirm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ spec }),
+    });
+    const data = await res.json();
+
+    if (data.errors && data.errors.length > 0) {
+      addChat('error', 'Validation failed — opening review form...');
+      document.getElementById('pipelineStatus').textContent = 'Needs fixes';
+      pipeline.classList.add('hidden');
+      showReviewForm(spec, data.errors);
+      return;
+    }
+
+    if (data.error && !data.storeId) {
+      addChat('error', data.error);
+      document.getElementById('pipelineStatus').textContent = 'Failed';
+      return;
+    }
+
+    addChat('system', `Store ID: ${data.storeId.substring(0, 8)}...`);
+    document.getElementById('pipelineStatus').textContent = 'Running...';
+    connectSSE(data.storeId);
+  } catch (err) {
+    addChat('error', 'Failed to start pipeline: ' + err.message);
+    document.getElementById('pipelineStatus').textContent = 'Failed';
+  }
+}
+
+// ── Step 2: Review form (only shown when there are errors) ──
 function showReviewForm(spec, errors) {
   document.getElementById('step1').classList.add('hidden');
   document.getElementById('step2').classList.remove('hidden');
 
-  // Populate fields
   document.getElementById('reviewDropName').value = spec.dropName || '';
   document.getElementById('reviewPostDrop').value = spec.postDropAction || 'SOLD_OUT_PAGE';
 
-  // Convert ISO date to datetime-local format
   if (spec.endDate) {
     const d = new Date(spec.endDate);
     if (!isNaN(d.getTime())) {
@@ -132,19 +186,16 @@ function collectSpecFromForm() {
 }
 
 function showFieldErrors(errors) {
-  // Clear all previous errors
   document.querySelectorAll('.field-error').forEach(el => el.textContent = '');
   document.querySelectorAll('.form-group input, .form-group select').forEach(el => el.classList.remove('input-error'));
 
   for (const err of errors) {
-    // Map field paths to error element IDs
     let errId = null;
     if (err.field === 'dropName') errId = 'err-dropName';
     else if (err.field === 'endDate') errId = 'err-endDate';
     else if (err.field === 'postDropAction') errId = 'err-postDropAction';
-    else if (err.field === 'items') errId = null; // general items error
+    else if (err.field === 'items') errId = null;
     else {
-      // items[0].price → err-items-0-price
       const match = err.field.match(/items\[(\d+)\]\.(\w+)/);
       if (match) errId = `err-items-${match[1]}-${match[2]}`;
     }
@@ -166,49 +217,17 @@ document.getElementById('backBtn').addEventListener('click', () => {
   document.getElementById('step1').classList.remove('hidden');
 });
 
-// ── Confirm & Launch ──
+// ── Confirm & Launch (from review form) ──
 document.getElementById('confirmBtn').addEventListener('click', async () => {
   const spec = collectSpecFromForm();
   const btn = document.getElementById('confirmBtn');
   btn.disabled = true;
   btn.textContent = 'Launching...';
 
-  // Clear old errors
   document.querySelectorAll('.field-error').forEach(el => el.textContent = '');
 
   try {
-    const res = await fetch('/api/drops/confirm', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ spec }),
-    });
-    const data = await res.json();
-
-    if (data.errors && data.errors.length > 0) {
-      showFieldErrors(data.errors);
-      btn.disabled = false;
-      btn.textContent = 'Confirm & Launch';
-      return;
-    }
-
-    if (data.error && !data.storeId) {
-      alert(data.error);
-      btn.disabled = false;
-      btn.textContent = 'Confirm & Launch';
-      return;
-    }
-
-    // Success — show pipeline
-    document.getElementById('step2').classList.add('hidden');
-    document.getElementById('step1').classList.remove('hidden');
-    document.getElementById('dropInput').value = '';
-
-    const pipeline = document.getElementById('pipeline');
-    const events = document.getElementById('events');
-    pipeline.classList.remove('hidden');
-    events.innerHTML = '';
-    addEvent('success', `Drop confirmed! Pipeline started (${data.storeId.substring(0, 8)}...)`);
-    connectSSE(data.storeId);
+    await launchPipeline(spec);
   } catch (err) {
     alert('Failed: ' + err.message);
   } finally {
@@ -217,38 +236,54 @@ document.getElementById('confirmBtn').addEventListener('click', async () => {
   }
 });
 
-// ── SSE for pipeline progress ──
+// ── SSE for pipeline progress (chatbox style) ──
 function connectSSE(storeId) {
   if (eventSource) eventSource.close();
   eventSource = new EventSource(`/events/${storeId}`);
 
   const handlers = {
-    'agent1:start': (d) => addEvent('info', d.message),
+    'agent1:start': (d) => addChat('agent1', d.message),
     'agent1:complete': (d) => {
       const itemsSummary = d.spec?.items?.map(i => `${i.productName} ($${i.price} x${i.inventory})`).join(', ');
-      addEvent('success', `Spec approved: ${itemsSummary || d.spec?.dropName}`);
+      addChat('agent1', `Spec approved: ${itemsSummary || d.spec?.dropName}`);
     },
-    'agent1:blocked': (d) => addEvent('error', `Blocked: ${d.reason}`),
-    'agent2:start': (d) => addEvent('info', d.message),
-    'agent2:balance_ok': (d) => addEvent('success', `Credits OK: $${d.credits}`),
-    'agent2:progress': (d) => addEvent('info', d.message),
-    'agent2:items_created': (d) => addEvent('success', `${d.count} item(s) configured`),
-    'agent2:service_created': (d) => addEvent('success', `Service created: ${d.serviceUrl}`),
-    'agent2:deploy_started': (d) => addEvent('info', `Deployment started (${d.deploymentId?.substring(0, 12)}...)`),
-    'agent2:deploy_status': (d) => addEvent('info', `Deploy: ${d.status} (poll ${d.poll})`),
+    'agent1:blocked': (d) => addChat('error', `Blocked: ${d.reason}`),
+    'agent2:start': (d) => addChat('agent2', d.message),
+    'agent2:balance_ok': (d) => addChat('agent2', `Credits verified: $${d.credits} available`),
+    'agent2:progress': (d) => addChat('agent2', d.message),
+    'agent2:items_created': (d) => {
+      addChat('agent2', `${d.count} item(s) configured with checkout sessions`);
+      d.items?.forEach(i => addChat('agent2', `  ${i.name} — $${i.price} USDC`));
+    },
+    'agent2:service_created': (d) => addChat('agent2', `Service created at ${d.serviceUrl}`),
+    'agent2:deploy_started': (d) => addChat('agent2', `Deployment started — building from source...`),
+    'agent2:deploy_status': (d) => {
+      const icon = d.status === 'deploying' ? 'building' : d.status;
+      updateLastDeployStatus(`Deployment status: ${icon} (check ${d.poll})`);
+    },
     'agent2:store_live': (d) => {
-      addEvent('success', `LIVE at ${d.url} (${d.itemCount} items)`);
+      addChat('success', `Your drop is LIVE!`);
+      addChat('success', `${d.url}`);
+      document.getElementById('pipelineStatus').textContent = 'Complete';
+      document.getElementById('pipelineStatus').classList.add('status-done');
+      showNewDropButton();
       loadStores();
     },
-    'agent2:deploy_failed': () => addEvent('error', 'Deployment failed'),
-    'agent2:error': (d) => addEvent('error', d.reason),
-    'agent2:warning': (d) => addEvent('warning', d.message),
+    'agent2:deploy_failed': () => {
+      addChat('error', 'Deployment failed. Check build logs on Locus dashboard.');
+      document.getElementById('pipelineStatus').textContent = 'Failed';
+    },
+    'agent2:error': (d) => {
+      addChat('error', d.reason);
+      document.getElementById('pipelineStatus').textContent = 'Failed';
+    },
+    'agent2:warning': (d) => addChat('warning', d.message),
     'agent3:sale': (d) => {
-      addEvent('success', `Sale: ${d.itemName} — ${d.remaining}/${d.total} left`);
+      addChat('agent3', `Sale! ${d.itemName} — ${d.remaining}/${d.total} remaining`);
       loadStores();
     },
-    'agent3:transition': (d) => { addEvent('info', `State -> ${d.newState}`); loadStores(); },
-    'agent3:redeploy': (d) => addEvent('info', `Redeploying (${d.reason})`),
+    'agent3:transition': (d) => { addChat('agent3', `Store state changed to ${d.newState}`); loadStores(); },
+    'agent3:redeploy': (d) => addChat('agent3', `Redeploying storefront (${d.reason})`),
   };
 
   for (const [event, handler] of Object.entries(handlers)) {
@@ -257,17 +292,84 @@ function connectSSE(storeId) {
     });
   }
 
-  eventSource.onerror = () => addEvent('warning', 'SSE reconnecting...');
+  eventSource.onerror = () => {
+    // Only show if not already complete
+    const status = document.getElementById('pipelineStatus').textContent;
+    if (status !== 'Complete') {
+      addChat('warning', 'Connection lost, reconnecting...');
+    }
+  };
 }
 
-function addEvent(type, message) {
+function addChat(type, message) {
   const events = document.getElementById('events');
-  const time = new Date().toLocaleTimeString();
   const div = document.createElement('div');
-  div.className = `event-line ${type}`;
-  div.textContent = `[${time}] ${message}`;
+  div.className = `chat-msg chat-${type}`;
+
+  const labels = {
+    system: 'System',
+    agent1: 'SpecGuard',
+    agent2: 'Builder',
+    agent3: 'Monitor',
+    success: 'Done',
+    error: 'Error',
+    warning: 'Warning',
+  };
+
+  const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+  div.innerHTML = `
+    <div class="chat-meta">
+      <span class="chat-label">${labels[type] || type}</span>
+      <span class="chat-time">${time}</span>
+    </div>
+    <div class="chat-text">${escapeHtml(message)}</div>
+  `;
+
   events.appendChild(div);
   events.scrollTop = events.scrollHeight;
+}
+
+// Update the last deploy status line instead of adding new ones
+function updateLastDeployStatus(message) {
+  const events = document.getElementById('events');
+  const existing = events.querySelector('.chat-deploy-status');
+  const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+  if (existing) {
+    existing.querySelector('.chat-text').textContent = message;
+    existing.querySelector('.chat-time').textContent = time;
+  } else {
+    const div = document.createElement('div');
+    div.className = 'chat-msg chat-agent2 chat-deploy-status';
+    div.innerHTML = `
+      <div class="chat-meta">
+        <span class="chat-label">Builder</span>
+        <span class="chat-time">${time}</span>
+      </div>
+      <div class="chat-text">${escapeHtml(message)}</div>
+    `;
+    events.appendChild(div);
+  }
+  events.scrollTop = events.scrollHeight;
+}
+
+function showNewDropButton() {
+  const events = document.getElementById('events');
+  const div = document.createElement('div');
+  div.className = 'chat-action';
+  div.innerHTML = `<button class="btn btn-primary" onclick="resetToNew()">Create Another Drop</button>`;
+  events.appendChild(div);
+  events.scrollTop = events.scrollHeight;
+}
+
+function resetToNew() {
+  document.getElementById('pipeline').classList.add('hidden');
+  document.getElementById('step1').classList.remove('hidden');
+  document.getElementById('dropInput').value = '';
+  document.getElementById('pipelineStatus').textContent = 'Running...';
+  document.getElementById('pipelineStatus').classList.remove('status-done');
+  if (eventSource) { eventSource.close(); eventSource = null; }
 }
 
 // ── Stores list ──

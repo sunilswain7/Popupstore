@@ -63,10 +63,16 @@
       </div>
     </section>
 
-    <!-- Pipeline Progress -->
-    <div id="pipeline" class="pipeline hidden">
-      <h3>Pipeline</h3>
-      <div id="events"></div>
+    <!-- Pipeline Chatbox -->
+    <div id="pipeline" class="pipeline-chatbox hidden">
+      <div class="chatbox-header">
+        <div class="chatbox-title">
+          <span class="chatbox-dot"></span>
+          Pipeline Console
+        </div>
+        <span class="chatbox-status" id="pipelineStatus">Running...</span>
+      </div>
+      <div class="chatbox-body" id="events"></div>
     </div>
 
     <!-- Stores List -->
