@@ -22,6 +22,10 @@ module.exports = {
   // Dashboard URL (self-reference for webhooks & inventory API)
   dashboardUrl: process.env.LOCUS_SERVICE_URL || process.env.DASHBOARD_URL || 'http://localhost:8080',
 
+  // Email (Resend)
+  resendApiKey: process.env.RESEND_API_KEY || '',
+  emailFrom: process.env.EMAIL_FROM || 'PopupStore <noreply@popupstore.dev>',
+
   // Webhook secret for HMAC verification
   webhookSecret: process.env.WEBHOOK_SECRET || 'dev-secret',
 };

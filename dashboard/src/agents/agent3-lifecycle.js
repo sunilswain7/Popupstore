@@ -2,6 +2,7 @@ const prisma = require('../lib/db');
 const { callBuild } = require('../lib/locus-build');
 const config = require('../lib/config');
 const { emit } = require('../lib/sse');
+const { sendDropSummary } = require('../lib/email');
 
 const expiryTimers = new Map();
 const teardownTimers = new Map();
@@ -157,6 +158,23 @@ async function handleArchived(store) {
     data: { status: 'ARCHIVED', archivedAt: new Date() },
   });
   emit('agent3:transition', { storeId: store.id, newState: 'ARCHIVED' }, store.id);
+
+  // Send summary email if owner provided email
+  if (store.ownerEmail) {
+    try {
+      const fullStore = await prisma.store.findUnique({
+        where: { id: store.id },
+        include: {
+          items: true,
+          transactions: { orderBy: { createdAt: 'desc' }, include: { item: true } },
+        },
+      });
+      const sent = await sendDropSummary(fullStore, fullStore.items, fullStore.transactions);
+      emit('agent3:email_sent', { storeId: store.id, email: store.ownerEmail, sent }, store.id);
+    } catch (err) {
+      console.error(`[Agent3] Email failed for ${store.id}:`, err.message);
+    }
+  }
 
   if (store.locusServiceId) {
     if (store.postDropAction === 'TEARDOWN') {

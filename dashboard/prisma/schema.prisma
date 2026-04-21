@@ -22,6 +22,7 @@ model Store {
   soldOutAt           DateTime? @map("sold_out_at") @db.Timestamptz()
   archivedAt          DateTime? @map("archived_at") @db.Timestamptz()
   deletedAt           DateTime? @map("deleted_at") @db.Timestamptz()
+  ownerEmail          String?   @map("owner_email")
 
   items        Item[]
   transactions Transaction[]

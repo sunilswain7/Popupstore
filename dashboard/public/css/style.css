@@ -246,6 +246,52 @@ button[type="submit"]:disabled { opacity: 0.4; cursor: not-allowed; }
   padding: 0.5rem;
 }
 
+/* Email prompt in chatbox */
+.email-prompt {
+  margin-top: 0.5rem;
+}
+
+.email-input-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.email-field {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid #333;
+  background: #0a0a0a;
+  color: #e5e5e5;
+  font-size: 0.85rem;
+  font-family: inherit;
+}
+
+.email-field:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+.btn-sm {
+  padding: 0.5rem 1rem;
+  font-size: 0.8rem;
+}
+
+.btn-skip {
+  background: none;
+  border: none;
+  color: #6b7280;
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.btn-skip:hover {
+  color: #9ca3af;
+}
+
 .hidden { display: none !important; }
 
 /* Stores List */
@@ -348,15 +394,23 @@ button[type="submit"]:disabled { opacity: 0.4; cursor: not-allowed; }
 .tx-list h3 { font-size: 0.9rem; margin-bottom: 0.5rem; }
 
 .tx-item {
-  padding: 0.5rem 0;
+  padding: 0.6rem 0;
   border-bottom: 1px solid #1a1a1a;
   font-size: 0.8rem;
   display: flex;
   justify-content: space-between;
+  align-items: center;
 }
 
-.tx-item .tx-hash { color: #3b82f6; font-family: monospace; }
-.tx-item .tx-amount { color: #22c55e; font-weight: 500; }
+.tx-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.tx-item-name { color: #f5f5f5; font-weight: 500; }
+.tx-time { color: #6b7280; font-size: 0.7rem; }
+.tx-item .tx-amount { color: #22c55e; font-weight: 600; white-space: nowrap; }
 
 /* Review Form */
 .review-section {

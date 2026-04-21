@@ -266,7 +266,7 @@ function connectSSE(storeId) {
       addChat('success', `${d.url}`);
       document.getElementById('pipelineStatus').textContent = 'Complete';
       document.getElementById('pipelineStatus').classList.add('status-done');
-      showNewDropButton();
+      showEmailPrompt(d.storeId);
       loadStores();
     },
     'agent2:deploy_failed': () => {
@@ -284,6 +284,7 @@ function connectSSE(storeId) {
     },
     'agent3:transition': (d) => { addChat('agent3', `Store state changed to ${d.newState}`); loadStores(); },
     'agent3:redeploy': (d) => addChat('agent3', `Redeploying storefront (${d.reason})`),
+    'agent3:email_sent': (d) => addChat('agent3', d.sent ? `Summary report sent to ${d.email}` : `Summary report logged (email service not configured)`),
   };
 
   for (const [event, handler] of Object.entries(handlers)) {
@@ -352,6 +353,60 @@ function updateLastDeployStatus(message) {
     events.appendChild(div);
   }
   events.scrollTop = events.scrollHeight;
+}
+
+function showEmailPrompt(storeId) {
+  const events = document.getElementById('events');
+  const div = document.createElement('div');
+  div.className = 'chat-msg chat-system';
+  div.innerHTML = `
+    <div class="chat-meta">
+      <span class="chat-label">System</span>
+      <span class="chat-time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+    </div>
+    <div class="chat-text">Want a summary report emailed when your drop ends?</div>
+    <div class="email-prompt" id="emailPrompt">
+      <div class="email-input-row">
+        <input type="email" id="emailInput" placeholder="your@email.com" class="email-field">
+        <button class="btn btn-primary btn-sm" onclick="submitEmail('${storeId}')">Send</button>
+      </div>
+      <button class="btn-skip" onclick="skipEmail()">Continue without email</button>
+    </div>
+  `;
+  events.appendChild(div);
+  events.scrollTop = events.scrollHeight;
+}
+
+async function submitEmail(storeId) {
+  const input = document.getElementById('emailInput');
+  const email = input.value.trim();
+  if (!email) return;
+
+  const prompt = document.getElementById('emailPrompt');
+  prompt.innerHTML = '<div style="color:#9ca3af;font-size:0.8rem">Saving...</div>';
+
+  try {
+    const res = await fetch(`/api/stores/${storeId}/email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    if (res.ok) {
+      prompt.innerHTML = `<div style="color:#22c55e;font-size:0.8rem;margin-top:0.25rem">We'll send a summary report to ${escapeHtml(email)} when your drop ends.</div>`;
+      addChat('system', `Email saved. You'll receive a drop summary report at ${email} when it ends.`);
+    } else {
+      prompt.innerHTML = '<div style="color:#ef4444;font-size:0.8rem">Invalid email. Try again.</div>';
+    }
+  } catch {
+    prompt.innerHTML = '<div style="color:#ef4444;font-size:0.8rem">Failed to save. Try again.</div>';
+  }
+  showNewDropButton();
+}
+
+function skipEmail() {
+  const prompt = document.getElementById('emailPrompt');
+  prompt.innerHTML = '<div style="color:#6b7280;font-size:0.8rem;margin-top:0.25rem">Skipped — no email report will be sent.</div>';
+  showNewDropButton();
 }
 
 function showNewDropButton() {
@@ -477,7 +532,10 @@ function renderStoreDetail(store) {
       <h3>Recent Sales (${store.transactions?.length || 0})</h3>
       ${(store.transactions || []).map(tx => `
         <div class="tx-item">
-          <span class="tx-hash">${tx.txHash ? tx.txHash.substring(0, 16) + '...' : 'pending'}</span>
+          <div class="tx-info">
+            <span class="tx-item-name">${escapeHtml(tx.item?.productName || 'Unknown item')}</span>
+            <span class="tx-time">${new Date(tx.createdAt).toLocaleString()}</span>
+          </div>
           <span class="tx-amount">$${tx.amountUsdc} USDC</span>
         </div>
       `).join('') || '<p class="empty">No sales yet</p>'}

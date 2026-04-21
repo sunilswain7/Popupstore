@@ -58,7 +58,7 @@ router.get('/stores', async (req, res) => {
     orderBy: { createdAt: 'desc' },
     include: {
       items: true,
-      transactions: { orderBy: { createdAt: 'desc' }, take: 10 },
+      transactions: { orderBy: { createdAt: 'desc' }, take: 10, include: { item: true } },
     },
   });
   res.json({ stores });
@@ -70,11 +70,28 @@ router.get('/stores/:id', async (req, res) => {
     where: { id: req.params.id },
     include: {
       items: true,
-      transactions: { orderBy: { createdAt: 'desc' } },
+      transactions: { orderBy: { createdAt: 'desc' }, include: { item: true } },
     },
   });
   if (!store) return res.status(404).json({ error: 'Store not found' });
   res.json({ store });
+});
+
+// Save owner email for a store
+router.post('/stores/:id/email', async (req, res) => {
+  const { email } = req.body;
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ error: 'Invalid email' });
+  }
+  try {
+    await prisma.store.update({
+      where: { id: req.params.id },
+      data: { ownerEmail: email },
+    });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(404).json({ error: 'Store not found' });
+  }
 });
 
 // Inventory endpoint — returns per-item inventory
