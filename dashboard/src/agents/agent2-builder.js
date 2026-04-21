@@ -14,7 +14,7 @@ async function runBuilder(spec, storeId) {
   // Step 0: Balance check
   emit('agent2:start', { message: 'Checking build credits...' }, storeId);
   const balance = await callBuild('GET', '/billing/balance');
-  if (balance.creditBalance < 0.50) {
+  if (balance.creditBalance < 0.25) {
     emit('agent2:error', { reason: 'Insufficient credits', balance: balance.creditBalance }, storeId);
     throw new Error(`Insufficient build credits: $${balance.creditBalance}`);
   }
