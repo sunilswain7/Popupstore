@@ -99,10 +99,7 @@ async function runBuilder(spec, storeId) {
       type: 'github',
       repo: config.storefrontRepo,
       branch: config.storefrontRepoBranch,
-    },
-    buildConfig: {
-      method: 'dockerfile',
-      dockerfile: 'storefront/Dockerfile',
+      rootDir: 'storefront',
     },
     runtime: {
       port: 8080,
