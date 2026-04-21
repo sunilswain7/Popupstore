@@ -16,7 +16,7 @@ module.exports = {
   // Shared project for storefronts
   storefrontProjectId: process.env.STOREFRONT_PROJECT_ID || '',
   storefrontEnvId: process.env.STOREFRONT_ENV_ID || '',
-  storefrontRepo: process.env.STOREFRONT_REPO || 'sunilswain7/Popupstore',
+  storefrontRepo: process.env.STOREFRONT_REPO || 'AshutoshVatsg/agent_buildwithlocus_agent2',
   storefrontRepoBranch: process.env.STOREFRONT_REPO_BRANCH || 'main',
 
   // Dashboard URL (self-reference for webhooks & inventory API)
