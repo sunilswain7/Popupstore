@@ -35,6 +35,7 @@ async function runBuilder(spec, storeId) {
 
   // Create items and checkout sessions
   const itemRecords = [];
+  const checkoutUrls = new Map(); // itemId → full checkout URL
   for (let i = 0; i < s.items.length; i++) {
     const item = s.items[i];
     emit('agent2:progress', { message: `Setting up item ${i + 1}/${s.items.length}: ${item.productName}...` }, storeId);
@@ -64,6 +65,7 @@ async function runBuilder(spec, storeId) {
       expiresInMinutes: 30,
     });
     const checkoutSessionId = checkoutResult.data?.id || `cs_mock_${Date.now()}_${i}`;
+    const checkoutUrl = checkoutResult.data?.checkoutUrl || `https://beta.paywithlocus.com/checkout/${checkoutSessionId}`;
 
     const itemRecord = await prisma.item.create({
       data: {
@@ -76,6 +78,7 @@ async function runBuilder(spec, storeId) {
         checkoutSessionId,
       },
     });
+    checkoutUrls.set(itemRecord.id, checkoutUrl);
     itemRecords.push(itemRecord);
   }
 
@@ -96,6 +99,10 @@ async function runBuilder(spec, storeId) {
       type: 'github',
       repo: config.storefrontRepo,
       branch: config.storefrontRepoBranch,
+    },
+    buildConfig: {
+      method: 'dockerfile',
+      dockerfile: 'storefront/Dockerfile',
     },
     runtime: {
       port: 8080,
@@ -123,6 +130,7 @@ async function runBuilder(spec, storeId) {
     price: r.priceUsdc,
     inventoryTotal: r.inventoryTotal,
     checkoutSessionId: r.checkoutSessionId,
+    checkoutUrl: checkoutUrls.get(r.id) || `https://beta.paywithlocus.com/checkout/${r.checkoutSessionId}`,
     imageUrl: r.imageUrl || '',
   }));
 
@@ -135,7 +143,6 @@ async function runBuilder(spec, storeId) {
       DROP_STATUS: 'ACTIVE',
       POST_DROP_ACTION: s.postDropAction || 'SOLD_OUT_PAGE',
       END_DATE: s.endDate,
-      CHECKOUT_BASE_URL: 'https://beta.paywithlocus.com/checkout',
     },
   });
 

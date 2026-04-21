@@ -13,7 +13,7 @@ const config = {
   endDate: process.env.END_DATE || '',
   showWaitlist: process.env.SHOW_WAITLIST === 'true',
   inventoryApiUrl: process.env.INVENTORY_API_URL || '',
-  checkoutBaseUrl: process.env.CHECKOUT_BASE_URL || 'https://beta.paywithlocus.com/checkout',
+  checkoutBaseUrl: process.env.CHECKOUT_BASE_URL || 'https://checkout.paywithlocus.com',
 };
 
 // Parse items from ITEMS_JSON env var, or fall back to single-item legacy env vars
@@ -60,9 +60,9 @@ app.get('/api/config', (req, res) => {
       price: i.price,
       inventoryTotal: i.inventoryTotal,
       imageUrl: i.imageUrl || '',
-      checkoutUrl: i.checkoutSessionId
+      checkoutUrl: i.checkoutUrl || (i.checkoutSessionId
         ? `${config.checkoutBaseUrl}/${i.checkoutSessionId}`
-        : '',
+        : ''),
     })),
   });
 });
@@ -271,9 +271,8 @@ function renderPage() {
 function renderItemsGrid() {
   return `<div class="items-grid">
     ${items.map(item => {
-      const checkoutUrl = item.checkoutSessionId
-        ? `${config.checkoutBaseUrl}/${item.checkoutSessionId}`
-        : '#';
+      const checkoutUrl = item.checkoutUrl
+        || (item.checkoutSessionId ? `${config.checkoutBaseUrl}/${item.checkoutSessionId}` : '#');
       return `
       <div class="item-card">
         ${item.imageUrl

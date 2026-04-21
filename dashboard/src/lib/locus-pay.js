@@ -35,11 +35,12 @@ function mockPayResponse(path, body) {
     };
   }
   if (path.includes('/checkout/sessions')) {
+    const mockId = `cs_mock_${Date.now()}`;
     return {
       success: true,
       data: {
-        id: `cs_mock_${Date.now()}`,
-        url: `https://beta.paywithlocus.com/checkout/cs_mock_${Date.now()}`,
+        id: mockId,
+        checkoutUrl: `https://checkout.paywithlocus.com/${mockId}`,
       },
     };
   }
