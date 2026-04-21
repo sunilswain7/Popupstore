@@ -3,47 +3,62 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 model Store {
   id                  String   @id @default(uuid())
   status              String   @default("PENDING")
-  productName         String   @map("product_name")
-  priceUsdc           Float    @map("price_usdc")
-  inventoryTotal      Int      @map("inventory_total")
-  inventoryRemaining  Int      @map("inventory_remaining")
-  endDate             DateTime @map("end_date")
+  dropName            String   @map("drop_name")
+  endDate             DateTime @map("end_date") @db.Timestamptz()
   postDropAction      String   @map("post_drop_action")
-  imageUrl            String?  @map("image_url")
-  checkoutSessionId   String?  @map("checkout_session_id")
   locusProjectId      String?  @map("locus_project_id")
   locusServiceId      String?  @map("locus_service_id")
   locusServiceUrl     String?  @map("locus_service_url")
   locusDeploymentId   String?  @map("locus_deployment_id")
-  createdAt           DateTime @default(now()) @map("created_at")
-  activatedAt         DateTime? @map("activated_at")
-  soldOutAt           DateTime? @map("sold_out_at")
-  archivedAt          DateTime? @map("archived_at")
-  deletedAt           DateTime? @map("deleted_at")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  activatedAt         DateTime? @map("activated_at") @db.Timestamptz()
+  soldOutAt           DateTime? @map("sold_out_at") @db.Timestamptz()
+  archivedAt          DateTime? @map("archived_at") @db.Timestamptz()
+  deletedAt           DateTime? @map("deleted_at") @db.Timestamptz()
 
+  items        Item[]
   transactions Transaction[]
 
   @@map("stores")
 }
 
+model Item {
+  id                  String   @id @default(uuid())
+  storeId             String   @map("store_id")
+  productName         String   @map("product_name")
+  priceUsdc           Decimal  @map("price_usdc") @db.Decimal(10, 2)
+  inventoryTotal      Int      @map("inventory_total")
+  inventoryRemaining  Int      @map("inventory_remaining")
+  imageUrl            String?  @map("image_url")
+  checkoutSessionId   String?  @map("checkout_session_id")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  store        Store         @relation(fields: [storeId], references: [id])
+  transactions Transaction[]
+
+  @@map("items")
+}
+
 model Transaction {
   id             String   @id @default(uuid())
   storeId        String   @map("store_id")
-  amountUsdc     Float    @map("amount_usdc")
+  itemId         String?  @map("item_id")
+  amountUsdc     Decimal  @map("amount_usdc") @db.Decimal(10, 2)
   buyerAddress   String?  @map("buyer_address")
   txHash         String?  @map("tx_hash")
   status         String   @default("PENDING")
   webhookEventId String?  @unique @map("webhook_event_id")
-  createdAt      DateTime @default(now()) @map("created_at")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
-  store Store @relation(fields: [storeId], references: [id])
+  store Store  @relation(fields: [storeId], references: [id])
+  item  Item?  @relation(fields: [itemId], references: [id])
 
   @@map("transactions")
 }

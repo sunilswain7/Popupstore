@@ -2,16 +2,6 @@ const { callLocusPay } = require('../lib/locus-pay');
 const config = require('../lib/config');
 const { emit } = require('../lib/sse');
 
-const SPEC_SCHEMA = {
-  productName: 'string',
-  price: 'number',
-  inventory: 'number',
-  endDate: 'string',
-  postDropAction: 'string',
-  generateImage: 'boolean',
-  imagePrompt: 'string',
-};
-
 const VALID_POST_DROP_ACTIONS = ['WAITLIST', 'SOLD_OUT_PAGE', 'TEARDOWN'];
 
 async function runSpecGuard(rawInput, storeId) {
@@ -36,7 +26,6 @@ async function runSpecGuard(rawInput, storeId) {
 
   // Defaults
   if (!spec.postDropAction) spec.postDropAction = 'SOLD_OUT_PAGE';
-  if (spec.generateImage === undefined) spec.generateImage = false;
 
   const result = { status: 'APPROVED', reason: null, spec };
   emit('agent1:complete', result, storeId);
@@ -46,6 +35,7 @@ async function runSpecGuard(rawInput, storeId) {
 async function extractSpec(rawInput) {
   const now = new Date().toISOString();
   const systemPrompt = `You are a structured data extractor for a product drop platform.
+A "drop" is a time-limited sale that can contain ONE OR MULTIPLE items.
 
 Current server time: ${now}
 
@@ -60,13 +50,18 @@ For endDate extraction:
 - If no end time can be determined: set endDate to null
 
 Return a JSON object with these fields:
-- productName (string or null)
-- price (number or null)
-- inventory (integer or null)
-- endDate (ISO 8601 string or null)
-- postDropAction ("WAITLIST" | "SOLD_OUT_PAGE" | "TEARDOWN" or null)
-- generateImage (boolean, default false)
-- imagePrompt (string or null)
+- dropName (string): a short name for this drop, derived from the products or context. e.g. "Art Print Drop", "Sticker & Hoodie Sale"
+- items (array of objects, each with):
+  - productName (string or null)
+  - price (number or null)
+  - inventory (integer or null)
+  - generateImage (boolean, default false)
+  - imagePrompt (string or null)
+- endDate (ISO 8601 string or null) — shared across all items
+- postDropAction ("WAITLIST" | "SOLD_OUT_PAGE" | "TEARDOWN" or null) — shared across all items
+
+If the user describes a single product, return an items array with one element.
+If the user describes multiple products (e.g. "20 prints at $25 and 50 stickers at $5"), return multiple items.
 
 ONLY return valid JSON. No markdown, no explanation.`;
 
@@ -74,7 +69,6 @@ ONLY return valid JSON. No markdown, no explanation.`;
     return mockExtract(rawInput);
   }
 
-  // Try haiku first, fallback to sonnet
   const models = ['claude-haiku-4-5-20251001', 'claude-sonnet-4-6-20250514'];
   let lastError;
 
@@ -82,10 +76,8 @@ ONLY return valid JSON. No markdown, no explanation.`;
     try {
       const response = await callLocusPay('POST', '/wrapped/anthropic/chat', {
         model,
-        max_tokens: 500,
-        messages: [
-          { role: 'user', content: rawInput },
-        ],
+        max_tokens: 800,
+        messages: [{ role: 'user', content: rawInput }],
         system: systemPrompt,
       });
 
@@ -103,24 +95,10 @@ ONLY return valid JSON. No markdown, no explanation.`;
 
 function mockExtract(rawInput) {
   const lower = rawInput.toLowerCase();
-
-  // Simple heuristic parser for mock mode
-  let productName = null;
-  let price = null;
-  let inventory = null;
-  let endDate = null;
-  let postDropAction = null;
-
-  // Extract price: "$25", "at $25", "$25.00"
-  const priceMatch = lower.match(/\$(\d+(?:\.\d{1,2})?)/);
-  if (priceMatch) price = parseFloat(priceMatch[1]);
-
-  // Extract inventory: "20 signed prints", "50 units", "100 shirts"
-  const invMatch = rawInput.match(/(\d+)\s+(?:signed\s+)?(?:prints?|units?|shirts?|copies|items?|pieces?|stickers?|hoodies?|posters?|tickets?)/i);
-  if (invMatch) inventory = parseInt(invMatch[1], 10);
-
-  // Extract end date: "ends Sunday", "5 hour drop", "drop ends Friday"
   const now = new Date();
+
+  // Parse end date
+  let endDate = null;
   const dayMatch = lower.match(/(?:ends?|until)\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)/);
   const durationMatch = lower.match(/(\d+)\s*(hour|day|minute|min|hr)s?\s*(?:drop|sale)?/);
 
@@ -144,54 +122,82 @@ function mockExtract(rawInput) {
     endDate = target.toISOString();
   }
 
-  // Extract product name: heuristic — take the main noun phrase
-  // Look for "selling X <product>" pattern
-  const nameMatch = rawInput.match(/(?:selling\s+\d+\s+)(.*?)(?:\s+at\s+|\s+for\s+|\s*,)/i);
-  if (nameMatch) {
-    productName = nameMatch[1].trim();
-  } else {
-    // Fallback: remove known patterns, use what's left
-    let cleaned = rawInput
-      .replace(/\$\d+(?:\.\d{1,2})?/g, '')
-      .replace(/\d+\s*(hour|day|minute|min|hr)s?\s*(drop|sale)?/gi, '')
-      .replace(/(selling|drop|ends?|until|at|for)\s*/gi, '')
-      .replace(/\d+/g, '')
-      .replace(/[,\.]/g, '')
-      .trim();
-    if (cleaned.length > 2) productName = cleaned;
+  // Parse multiple items: split on "and", ",", "&"
+  // Pattern: "<quantity> <product> at/for $<price>"
+  const items = [];
+  const segments = rawInput.split(/\s*(?:,\s*and\s+|,\s+|\s+and\s+|&)\s*/i);
+
+  for (const seg of segments) {
+    const itemMatch = seg.match(/(\d+)\s+(.*?)\s+(?:at|for)\s+\$(\d+(?:\.\d{1,2})?)/i);
+    if (itemMatch) {
+      items.push({
+        productName: itemMatch[2].trim(),
+        price: parseFloat(itemMatch[3]),
+        inventory: parseInt(itemMatch[1], 10),
+        generateImage: false,
+        imagePrompt: null,
+      });
+    }
   }
 
-  // postDropAction from text
-  if (lower.includes('waitlist')) postDropAction = 'WAITLIST';
-  else if (lower.includes('teardown') || lower.includes('tear down') || lower.includes('delete')) postDropAction = 'TEARDOWN';
+  // Fallback: try single-item pattern on the whole input
+  if (items.length === 0) {
+    const priceMatch = lower.match(/\$(\d+(?:\.\d{1,2})?)/);
+    const invMatch = rawInput.match(/(\d+)\s+(?:signed\s+)?(?:\w+)/i);
+    let productName = rawInput.replace(/\$\d+(?:\.\d+)?/g, '').replace(/\d+\s*(hour|day|minute)s?\s*(drop|sale)?/gi, '').replace(/(selling|drop|ends?|until|at|for)\s*/gi, '').replace(/\d+/g, '').replace(/[,\.]/g, '').trim();
 
-  return {
-    productName,
-    price,
-    inventory,
-    endDate,
-    postDropAction,
-    generateImage: lower.includes('generate image') || lower.includes('create image'),
-    imagePrompt: null,
-  };
+    items.push({
+      productName: productName || 'Product',
+      price: priceMatch ? parseFloat(priceMatch[1]) : null,
+      inventory: invMatch ? parseInt(invMatch[1], 10) : null,
+      generateImage: false,
+      imagePrompt: null,
+    });
+  }
+
+  // Derive drop name
+  const dropName = items.length === 1
+    ? `${items[0].productName} Drop`
+    : items.map(i => i.productName).join(' & ') + ' Drop';
+
+  // postDropAction from text
+  let postDropAction = null;
+  if (lower.includes('waitlist')) postDropAction = 'WAITLIST';
+  else if (lower.includes('teardown') || lower.includes('delete')) postDropAction = 'TEARDOWN';
+
+  return { dropName, items, endDate, postDropAction };
 }
 
 function validateSpec(spec) {
-  if (!spec.productName || spec.productName.trim().length === 0) {
-    return 'Missing product name';
+  if (!spec.items || !Array.isArray(spec.items) || spec.items.length === 0) {
+    return 'No items found in your description';
   }
-  if (spec.productName.length > 100) {
-    return 'Product name must be under 100 characters';
+
+  for (let i = 0; i < spec.items.length; i++) {
+    const item = spec.items[i];
+    const prefix = spec.items.length > 1 ? `Item ${i + 1}: ` : '';
+
+    if (!item.productName || item.productName.trim().length === 0) {
+      return `${prefix}Missing product name`;
+    }
+    if (item.productName.length > 100) {
+      return `${prefix}Product name must be under 100 characters`;
+    }
+    if (item.price === null || item.price === undefined || item.price <= 0) {
+      return `${prefix}Invalid price`;
+    }
+    if (item.inventory === null || item.inventory === undefined || item.inventory <= 0 || !Number.isInteger(item.inventory)) {
+      return `${prefix}Invalid inventory`;
+    }
+    if (item.inventory > 10000) {
+      return `${prefix}Inventory cannot exceed 10,000`;
+    }
   }
-  if (spec.price === null || spec.price === undefined || spec.price <= 0) {
-    return 'Invalid price';
+
+  if (!spec.dropName || spec.dropName.trim().length === 0) {
+    spec.dropName = spec.items.map(i => i.productName).join(' & ') + ' Drop';
   }
-  if (spec.inventory === null || spec.inventory === undefined || spec.inventory <= 0 || !Number.isInteger(spec.inventory)) {
-    return 'Invalid inventory';
-  }
-  if (spec.inventory > 10000) {
-    return 'Inventory cannot exceed 10,000';
-  }
+
   if (!spec.endDate) {
     return 'Missing end date';
   }
@@ -199,14 +205,13 @@ function validateSpec(spec) {
   if (isNaN(endDateObj.getTime())) {
     return 'Invalid end date format';
   }
-  const now = Date.now();
-  if (endDateObj.getTime() <= now) {
+  if (endDateObj.getTime() <= Date.now()) {
     return 'End date must be in the future';
   }
-  if (endDateObj.getTime() - now < 5 * 60 * 1000) {
+  if (endDateObj.getTime() - Date.now() < 5 * 60 * 1000) {
     return 'Drop must be at least 5 minutes long';
   }
-  if (endDateObj.getTime() - now > 365 * 24 * 60 * 60 * 1000) {
+  if (endDateObj.getTime() - Date.now() > 365 * 24 * 60 * 60 * 1000) {
     return 'Drop cannot exceed 1 year';
   }
   if (spec.postDropAction && !VALID_POST_DROP_ACTIONS.includes(spec.postDropAction)) {

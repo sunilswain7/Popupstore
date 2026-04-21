@@ -86,7 +86,7 @@ button[type="submit"]:disabled { opacity: 0.4; cursor: not-allowed; }
 /* Pipeline Events */
 .pipeline { margin-top: 1rem; }
 .pipeline h3 { font-size: 0.9rem; color: #9ca3af; margin-bottom: 0.5rem; }
-.hidden { display: none; }
+.hidden { display: none !important; }
 
 #events {
   max-height: 300px;
@@ -159,7 +159,7 @@ button[type="submit"]:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .modal-content {
   background: #111;
-  border: 1px solid #222;
+  border: 1px solid #333;
   border-radius: 12px;
   padding: 2rem;
   max-width: 600px;
@@ -167,6 +167,7 @@ button[type="submit"]:disabled { opacity: 0.4; cursor: not-allowed; }
   max-height: 80vh;
   overflow-y: auto;
   position: relative;
+  color: #e5e5e5;
 }
 
 .modal-close {
@@ -186,7 +187,7 @@ button[type="submit"]:disabled { opacity: 0.4; cursor: not-allowed; }
 }
 
 .detail-item label { font-size: 0.75rem; color: #6b7280; display: block; }
-.detail-item .value { font-size: 1rem; font-weight: 500; margin-top: 2px; }
+.detail-item .value { font-size: 1rem; font-weight: 500; margin-top: 2px; color: #f5f5f5; }
 
 .detail-actions {
   display: flex; gap: 0.5rem; margin-bottom: 1.5rem;

@@ -20,61 +20,73 @@ async function runBuilder(spec, storeId) {
   }
   emit('agent2:balance_ok', { credits: balance.creditBalance }, storeId);
 
-  // Step 1: Create DB record
-  emit('agent2:progress', { message: 'Creating store record...' }, storeId);
+  // Step 1: Create store + items in DB
+  emit('agent2:progress', { message: `Creating drop with ${s.items.length} item(s)...` }, storeId);
   const store = await prisma.store.create({
     data: {
       id: storeId,
       status: 'PENDING',
-      productName: s.productName,
-      priceUsdc: s.price,
-      inventoryTotal: s.inventory,
-      inventoryRemaining: s.inventory,
+      dropName: s.dropName,
       endDate: new Date(s.endDate),
-      postDropAction: s.postDropAction,
+      postDropAction: s.postDropAction || 'SOLD_OUT_PAGE',
       locusProjectId: config.storefrontProjectId || null,
     },
   });
-  emit('agent2:db_record_created', { storeId: store.id }, storeId);
 
-  // Step 2: Generate image (optional)
-  let imageUrl = null;
-  if (s.generateImage && s.imagePrompt) {
-    emit('agent2:progress', { message: 'Generating product image...' }, storeId);
-    try {
-      const imgResult = await callLocusPay('POST', '/wrapped/fal/generate', {
-        prompt: s.imagePrompt,
-        model: 'fast-sdxl',
-      });
-      imageUrl = imgResult.data?.images?.[0]?.url || null;
-      if (imageUrl) {
-        await prisma.store.update({ where: { id: storeId }, data: { imageUrl } });
+  // Create items and checkout sessions
+  const itemRecords = [];
+  for (let i = 0; i < s.items.length; i++) {
+    const item = s.items[i];
+    emit('agent2:progress', { message: `Setting up item ${i + 1}/${s.items.length}: ${item.productName}...` }, storeId);
+
+    // Generate image if requested
+    let imageUrl = null;
+    if (item.generateImage && item.imagePrompt) {
+      try {
+        const imgResult = await callLocusPay('POST', '/wrapped/fal/generate', {
+          prompt: item.imagePrompt,
+          model: 'fast-sdxl',
+        });
+        imageUrl = imgResult.data?.images?.[0]?.url || null;
+      } catch (err) {
+        console.error(`Image generation failed for item ${i + 1}:`, err.message);
       }
-    } catch (err) {
-      console.error('Image generation failed, continuing without image:', err.message);
-      emit('agent2:warning', { message: 'Image generation failed, continuing without image' }, storeId);
     }
+
+    // Create checkout session for this item
+    const checkoutResult = await callLocusPay('POST', '/checkout/sessions', {
+      amount: item.price.toString(),
+      description: item.productName,
+      metadata: { storeId, itemIndex: i.toString() },
+      webhookUrl: `${config.dashboardUrl}/webhooks/checkout`,
+      successUrl: `${config.dashboardUrl}/stores/${storeId}/thanks`,
+      cancelUrl: `${config.dashboardUrl}/stores/${storeId}`,
+      expiresInMinutes: 30,
+    });
+    const checkoutSessionId = checkoutResult.data?.id || `cs_mock_${Date.now()}_${i}`;
+
+    const itemRecord = await prisma.item.create({
+      data: {
+        storeId,
+        productName: item.productName,
+        priceUsdc: item.price,
+        inventoryTotal: item.inventory,
+        inventoryRemaining: item.inventory,
+        imageUrl,
+        checkoutSessionId,
+      },
+    });
+    itemRecords.push(itemRecord);
   }
 
-  // Step 3: Create checkout session
-  emit('agent2:progress', { message: 'Creating checkout session...' }, storeId);
-  const checkoutResult = await callLocusPay('POST', '/checkout/sessions', {
-    amount: s.price.toString(),
-    description: s.productName,
-    metadata: { storeId },
-    webhookUrl: `${config.dashboardUrl}/webhooks/checkout`,
-    successUrl: `${config.dashboardUrl}/stores/${storeId}/thanks`,
-    cancelUrl: `${config.dashboardUrl}/stores/${storeId}`,
-    expiresInMinutes: 30,
-  });
-  const checkoutSessionId = checkoutResult.data?.id || `cs_mock_${Date.now()}`;
-  await prisma.store.update({ where: { id: storeId }, data: { checkoutSessionId } });
-  emit('agent2:checkout_created', { checkoutSessionId }, storeId);
+  emit('agent2:items_created', {
+    count: itemRecords.length,
+    items: itemRecords.map(r => ({ id: r.id, name: r.productName, price: r.priceUsdc })),
+  }, storeId);
 
   // Step 4: Deploy storefront on BuildWithLocus
   emit('agent2:progress', { message: 'Deploying storefront service...' }, storeId);
 
-  // 4b. Create service
   const serviceName = `drop-${storeId.substring(0, 8)}`;
   const service = await callBuild('POST', '/services', {
     projectId: config.storefrontProjectId,
@@ -103,34 +115,38 @@ async function runBuilder(spec, storeId) {
   });
   emit('agent2:service_created', { serviceId, serviceUrl }, storeId);
 
-  // 4c. Inject env vars
+  // Inject env vars — items data as JSON for the storefront to read
   emit('agent2:progress', { message: 'Configuring environment variables...' }, storeId);
+  const itemsEnv = itemRecords.map(r => ({
+    id: r.id,
+    productName: r.productName,
+    price: r.priceUsdc,
+    inventoryTotal: r.inventoryTotal,
+    checkoutSessionId: r.checkoutSessionId,
+    imageUrl: r.imageUrl || '',
+  }));
+
   await callBuild('PUT', `/variables/service/${serviceId}`, {
     variables: {
       STORE_ID: storeId,
-      PRODUCT_NAME: s.productName,
-      PRICE_USDC: s.price.toString(),
-      INVENTORY_TOTAL: s.inventory.toString(),
-      CHECKOUT_SESSION_ID: checkoutSessionId,
+      DROP_NAME: s.dropName,
+      ITEMS_JSON: JSON.stringify(itemsEnv),
       INVENTORY_API_URL: `${config.dashboardUrl}/api/inventory/${storeId}`,
       DROP_STATUS: 'ACTIVE',
-      POST_DROP_ACTION: s.postDropAction,
+      POST_DROP_ACTION: s.postDropAction || 'SOLD_OUT_PAGE',
       END_DATE: s.endDate,
-      IMAGE_URL: imageUrl || '',
       CHECKOUT_BASE_URL: 'https://beta.paywithlocus.com/checkout',
     },
   });
 
-  // 4d. Trigger deployment
+  // Trigger deployment
   emit('agent2:progress', { message: 'Triggering deployment (3-7 min for source builds)...' }, storeId);
-  const deployment = await callBuild('POST', '/deployments', {
-    serviceId,
-  });
+  const deployment = await callBuild('POST', '/deployments', { serviceId });
   const deploymentId = deployment.id;
   await prisma.store.update({ where: { id: storeId }, data: { locusDeploymentId: deploymentId } });
   emit('agent2:deploy_started', { deploymentId, serviceId }, storeId);
 
-  // 4e. Monitor deployment (non-blocking poll)
+  // Monitor deployment
   const finalStatus = await monitorDeployment(deploymentId, storeId);
 
   if (finalStatus === 'failed') {
@@ -139,34 +155,28 @@ async function runBuilder(spec, storeId) {
     throw new Error('Deployment failed');
   }
 
-  // Step 5: Finalize
+  // Finalize
   await prisma.store.update({
     where: { id: storeId },
     data: { status: 'ACTIVE', activatedAt: new Date() },
   });
 
-  emit('agent2:store_live', { url: serviceUrl, storeId }, storeId);
+  emit('agent2:store_live', { url: serviceUrl, storeId, itemCount: itemRecords.length }, storeId);
   return { storeId, serviceId, serviceUrl, deploymentId };
 }
 
 async function monitorDeployment(deploymentId, storeId) {
   const TERMINAL = ['healthy', 'failed', 'cancelled', 'rolled_back'];
-  const MAX_POLLS = 20; // 20 * 30s = 10 min max
-  const POLL_INTERVAL = config.isMock ? 100 : 30000; // 100ms in mock, 30s real
+  const MAX_POLLS = 20;
+  const POLL_INTERVAL = config.isMock ? 100 : 30000;
 
   for (let i = 0; i < MAX_POLLS; i++) {
     const data = await callBuild('GET', `/deployments/${deploymentId}`);
     const status = data.status || 'unknown';
-
     emit('agent2:deploy_status', { status, poll: i + 1 }, storeId);
-
-    if (TERMINAL.includes(status)) {
-      return status;
-    }
-
+    if (TERMINAL.includes(status)) return status;
     await new Promise((r) => setTimeout(r, POLL_INTERVAL));
   }
-
   return 'timeout';
 }
 
