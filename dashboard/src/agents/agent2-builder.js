@@ -42,6 +42,7 @@ async function runBuilder(spec, storeId) {
       status: 'PENDING',
       dropName: s.dropName,
       slug,
+      ownerEmail: spec.ownerEmail || null,
       endDate: new Date(s.endDate),
       postDropAction: s.postDropAction || 'SOLD_OUT_PAGE',
       locusProjectId: config.storefrontProjectId || null,

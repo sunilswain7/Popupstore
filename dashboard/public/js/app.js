@@ -28,8 +28,8 @@ document.getElementById('dropForm').addEventListener('submit', async (e) => {
     const errors = data.errors || [];
 
     if (errors.length === 0) {
-      // No errors — skip review, launch directly
-      launchPipeline(parsedSpec);
+      // No errors — ask for email, then launch
+      showEmailBeforeLaunch(parsedSpec);
     } else {
       // Has errors — show review form for user to fix
       showReviewForm(parsedSpec, errors);
@@ -42,9 +42,10 @@ document.getElementById('dropForm').addEventListener('submit', async (e) => {
   }
 });
 
-// ── Launch pipeline (confirm spec and start agents) ──
-async function launchPipeline(spec) {
-  // Hide input, show chatbox
+// ── Email prompt before launch ──
+let pendingOwnerEmail = null;
+
+function showEmailBeforeLaunch(spec) {
   document.getElementById('step1').classList.add('hidden');
   document.getElementById('step2').classList.add('hidden');
 
@@ -52,18 +53,59 @@ async function launchPipeline(spec) {
   const events = document.getElementById('events');
   pipeline.classList.remove('hidden');
   events.innerHTML = '';
-  document.getElementById('pipelineStatus').textContent = 'Starting...';
+  document.getElementById('pipelineStatus').textContent = 'Waiting...';
 
-  addChat('system', 'Spec looks good! Launching pipeline...');
   addChat('agent1', `Drop: ${escapeHtml(spec.dropName)}`);
   addChat('agent1', `Items: ${spec.items.map(i => `${i.productName} ($${i.price} x${i.inventory})`).join(', ')}`);
   addChat('agent1', `Ends: ${new Date(spec.endDate).toLocaleString()}`);
+
+  const div = document.createElement('div');
+  div.className = 'chat-msg chat-system';
+  div.innerHTML = `
+    <div class="chat-meta">
+      <span class="chat-label">System</span>
+      <span class="chat-time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+    </div>
+    <div class="chat-text">Want an automatic sales summary emailed when this drop ends?</div>
+    <div class="email-prompt" id="emailPromptBefore">
+      <div class="email-input-row">
+        <input type="email" id="emailInputBefore" placeholder="your@email.com" class="email-field">
+        <button class="btn btn-primary btn-sm" id="emailSendBtn">Send</button>
+      </div>
+      <button class="btn-skip" id="emailSkipBtn">Skip — launch without email</button>
+    </div>
+  `;
+  events.appendChild(div);
+  events.scrollTop = events.scrollHeight;
+
+  document.getElementById('emailSendBtn').addEventListener('click', () => {
+    const email = document.getElementById('emailInputBefore').value.trim();
+    if (!email) return;
+    pendingOwnerEmail = email;
+    const prompt = document.getElementById('emailPromptBefore');
+    prompt.innerHTML = `<div style="color:#22c55e;font-size:0.8rem;margin-top:0.25rem">Summary will be sent to ${escapeHtml(email)} when the drop ends.</div>`;
+    addChat('system', `Email set: ${email}`);
+    launchPipeline(spec);
+  });
+
+  document.getElementById('emailSkipBtn').addEventListener('click', () => {
+    pendingOwnerEmail = null;
+    const prompt = document.getElementById('emailPromptBefore');
+    prompt.innerHTML = '<div style="color:#6b7280;font-size:0.8rem;margin-top:0.25rem">Skipped — no email report.</div>';
+    launchPipeline(spec);
+  });
+}
+
+// ── Launch pipeline (confirm spec and start agents) ──
+async function launchPipeline(spec) {
+  document.getElementById('pipelineStatus').textContent = 'Starting...';
+  addChat('system', 'Launching pipeline...');
 
   try {
     const res = await fetch('/api/drops/confirm', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ spec }),
+      body: JSON.stringify({ spec, ownerEmail: pendingOwnerEmail || null }),
     });
     const data = await res.json();
 
@@ -218,22 +260,10 @@ document.getElementById('backBtn').addEventListener('click', () => {
 });
 
 // ── Confirm & Launch (from review form) ──
-document.getElementById('confirmBtn').addEventListener('click', async () => {
+document.getElementById('confirmBtn').addEventListener('click', () => {
   const spec = collectSpecFromForm();
-  const btn = document.getElementById('confirmBtn');
-  btn.disabled = true;
-  btn.textContent = 'Launching...';
-
   document.querySelectorAll('.field-error').forEach(el => el.textContent = '');
-
-  try {
-    await launchPipeline(spec);
-  } catch (err) {
-    alert('Failed: ' + err.message);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Confirm & Launch';
-  }
+  showEmailBeforeLaunch(spec);
 });
 
 // ── SSE for pipeline progress (chatbox style) ──
@@ -263,10 +293,10 @@ function connectSSE(storeId) {
     },
     'agent2:store_live': (d) => {
       addChat('success', `Your drop is LIVE!`);
-      addChat('success', `${d.url}`);
+      addChat('success', d.slug ? `Share link: /s/${d.slug}` : d.url);
       document.getElementById('pipelineStatus').textContent = 'Complete';
       document.getElementById('pipelineStatus').classList.add('status-done');
-      showEmailPrompt(d.storeId);
+      showNewDropButton();
       loadStores();
     },
     'agent2:deploy_failed': () => {
@@ -355,59 +385,6 @@ function updateLastDeployStatus(message) {
   events.scrollTop = events.scrollHeight;
 }
 
-function showEmailPrompt(storeId) {
-  const events = document.getElementById('events');
-  const div = document.createElement('div');
-  div.className = 'chat-msg chat-system';
-  div.innerHTML = `
-    <div class="chat-meta">
-      <span class="chat-label">System</span>
-      <span class="chat-time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
-    </div>
-    <div class="chat-text">Want a summary report emailed when your drop ends?</div>
-    <div class="email-prompt" id="emailPrompt">
-      <div class="email-input-row">
-        <input type="email" id="emailInput" placeholder="your@email.com" class="email-field">
-        <button class="btn btn-primary btn-sm" onclick="submitEmail('${storeId}')">Send</button>
-      </div>
-      <button class="btn-skip" onclick="skipEmail()">Continue without email</button>
-    </div>
-  `;
-  events.appendChild(div);
-  events.scrollTop = events.scrollHeight;
-}
-
-async function submitEmail(storeId) {
-  const input = document.getElementById('emailInput');
-  const email = input.value.trim();
-  if (!email) return;
-
-  const prompt = document.getElementById('emailPrompt');
-  prompt.innerHTML = '<div style="color:#9ca3af;font-size:0.8rem">Saving...</div>';
-
-  try {
-    const res = await fetch(`/api/stores/${storeId}/email`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
-    });
-    if (res.ok) {
-      prompt.innerHTML = `<div style="color:#22c55e;font-size:0.8rem;margin-top:0.25rem">We'll send a summary report to ${escapeHtml(email)} when your drop ends.</div>`;
-      addChat('system', `Email saved. You'll receive a drop summary report at ${email} when it ends.`);
-    } else {
-      prompt.innerHTML = '<div style="color:#ef4444;font-size:0.8rem">Invalid email. Try again.</div>';
-    }
-  } catch {
-    prompt.innerHTML = '<div style="color:#ef4444;font-size:0.8rem">Failed to save. Try again.</div>';
-  }
-  showNewDropButton();
-}
-
-function skipEmail() {
-  const prompt = document.getElementById('emailPrompt');
-  prompt.innerHTML = '<div style="color:#6b7280;font-size:0.8rem;margin-top:0.25rem">Skipped — no email report will be sent.</div>';
-  showNewDropButton();
-}
 
 function showNewDropButton() {
   const events = document.getElementById('events');

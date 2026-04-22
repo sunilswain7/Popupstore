@@ -26,7 +26,7 @@ router.post('/drops/parse', async (req, res) => {
 
 // Step 2: User reviewed/corrected spec → validate final + launch pipeline
 router.post('/drops/confirm', async (req, res) => {
-  const { spec } = req.body;
+  const { spec, ownerEmail } = req.body;
   if (!spec) {
     return res.status(400).json({ error: 'Missing spec' });
   }
@@ -44,7 +44,7 @@ router.post('/drops/confirm', async (req, res) => {
   (async () => {
     try {
       emit('agent1:complete', { status: 'APPROVED', spec }, storeId);
-      await runBuilder({ status: 'APPROVED', spec }, storeId);
+      await runBuilder({ status: 'APPROVED', spec, ownerEmail: ownerEmail || null }, storeId);
       scheduleExpiry(storeId, spec.endDate);
     } catch (err) {
       console.error(`[Pipeline] Error for ${storeId}:`, err.message);
