@@ -11,6 +11,9 @@ async function runBuilder(spec, storeId) {
 
   const s = spec.spec;
 
+  // Calculate intended drop duration so we can start the timer after deploy, not now
+  const dropDurationMs = new Date(s.endDate).getTime() - Date.now();
+
   // Step 0: Balance check
   emit('agent2:start', { message: 'Checking build credits...' }, storeId);
   const balance = await callBuild('GET', '/billing/balance');
@@ -174,14 +177,22 @@ async function runBuilder(spec, storeId) {
     throw new Error('Deployment failed');
   }
 
-  // Finalize
+  // Recalculate endDate based on NOW + original duration (not parse time)
+  const actualEndDate = new Date(Date.now() + dropDurationMs);
   await prisma.store.update({
     where: { id: storeId },
-    data: { status: 'ACTIVE', activatedAt: new Date() },
+    data: { status: 'ACTIVE', activatedAt: new Date(), endDate: actualEndDate },
   });
 
+  // Update storefront with corrected end date
+  await callBuild('PATCH', `/variables/service/${serviceId}`, {
+    variables: { END_DATE: actualEndDate.toISOString() },
+  });
+  await callBuild('POST', `/services/${serviceId}/redeploy`, {});
+  emit('agent2:progress', { message: `Drop timer started — ends ${actualEndDate.toLocaleString()}` }, storeId);
+
   emit('agent2:store_live', { url: serviceUrl, slug, storeId, itemCount: itemRecords.length }, storeId);
-  return { storeId, serviceId, serviceUrl, slug, deploymentId };
+  return { storeId, serviceId, serviceUrl, slug, deploymentId, endDate: actualEndDate.toISOString() };
 }
 
 async function monitorDeployment(deploymentId, storeId) {

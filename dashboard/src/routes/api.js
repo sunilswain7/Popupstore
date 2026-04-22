@@ -44,8 +44,8 @@ router.post('/drops/confirm', async (req, res) => {
   (async () => {
     try {
       emit('agent1:complete', { status: 'APPROVED', spec }, storeId);
-      await runBuilder({ status: 'APPROVED', spec, ownerEmail: ownerEmail || null }, storeId);
-      scheduleExpiry(storeId, spec.endDate);
+      const result = await runBuilder({ status: 'APPROVED', spec, ownerEmail: ownerEmail || null }, storeId);
+      scheduleExpiry(storeId, result.endDate);
     } catch (err) {
       console.error(`[Pipeline] Error for ${storeId}:`, err.message);
     }
