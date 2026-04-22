@@ -17,6 +17,7 @@ model Store {
   locusServiceId      String?  @map("locus_service_id")
   locusServiceUrl     String?  @map("locus_service_url")
   locusDeploymentId   String?  @map("locus_deployment_id")
+  slug                String?  @unique
   createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz()
   activatedAt         DateTime? @map("activated_at") @db.Timestamptz()
   soldOutAt           DateTime? @map("sold_out_at") @db.Timestamptz()

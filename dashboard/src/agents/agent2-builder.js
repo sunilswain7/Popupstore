@@ -22,11 +22,26 @@ async function runBuilder(spec, storeId) {
 
   // Step 1: Create store + items in DB
   emit('agent2:progress', { message: `Creating drop with ${s.items.length} item(s)...` }, storeId);
+
+  // Generate URL slug from drop name
+  let slug = s.dropName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 63);
+
+  // Ensure uniqueness
+  const existing = await prisma.store.findUnique({ where: { slug } });
+  if (existing) {
+    slug = `${slug}-${storeId.substring(0, 6)}`;
+  }
+
   const store = await prisma.store.create({
     data: {
       id: storeId,
       status: 'PENDING',
       dropName: s.dropName,
+      slug,
       endDate: new Date(s.endDate),
       postDropAction: s.postDropAction || 'SOLD_OUT_PAGE',
       locusProjectId: config.storefrontProjectId || null,
@@ -164,8 +179,8 @@ async function runBuilder(spec, storeId) {
     data: { status: 'ACTIVE', activatedAt: new Date() },
   });
 
-  emit('agent2:store_live', { url: serviceUrl, storeId, itemCount: itemRecords.length }, storeId);
-  return { storeId, serviceId, serviceUrl, deploymentId };
+  emit('agent2:store_live', { url: serviceUrl, slug, storeId, itemCount: itemRecords.length }, storeId);
+  return { storeId, serviceId, serviceUrl, slug, deploymentId };
 }
 
 async function monitorDeployment(deploymentId, storeId) {

@@ -90,6 +90,35 @@ app.post('/webhooks/checkout', express.raw({ type: '*/*' }), async (req, res) =>
   }
 });
 
+// Pretty URL proxy — /s/:slug serves the storefront inline
+app.get('/s/:slug', async (req, res) => {
+  try {
+    const prisma = require('./lib/db');
+    const store = await prisma.store.findUnique({ where: { slug: req.params.slug } });
+    if (!store || !store.locusServiceUrl) return res.status(404).send('Store not found');
+    const response = await fetch(store.locusServiceUrl);
+    const html = await response.text();
+    res.type('html').send(html);
+  } catch (err) {
+    console.error('[Slug Proxy] Error:', err.message);
+    res.status(502).send('Could not load store');
+  }
+});
+
+app.get('/s/:slug/api/:path(*)', async (req, res) => {
+  try {
+    const prisma = require('./lib/db');
+    const store = await prisma.store.findUnique({ where: { slug: req.params.slug } });
+    if (!store || !store.locusServiceUrl) return res.status(404).json({ error: 'Not found' });
+    const response = await fetch(`${store.locusServiceUrl}/api/${req.params.path}`);
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
+    console.error('[Slug Proxy] API error:', err.message);
+    res.status(502).json({ error: 'Could not load store data' });
+  }
+});
+
 // API routes
 app.use('/api', apiRoutes);
 app.use('/api', overrideRoutes);
