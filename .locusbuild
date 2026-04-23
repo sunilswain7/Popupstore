@@ -1,35 +1,27 @@
 {
-  "services": [
-    {
-      "name": "dashboard",
-      "root": "dashboard",
-      "runtime": {
-        "port": 8080,
-        "cpu": 256,
-        "memory": 512,
-        "minInstances": 1,
-        "maxInstances": 1
-      },
-      "healthCheckPath": "/",
+  "services": {
+    "dashboard": {
+      "path": "dashboard",
+      "port": 8080,
+      "healthCheck": "/",
+      "startCommand": "(npx prisma migrate deploy || echo Migration-skipped) && node src/server.js",
+      "runtime": { "cpu": 256, "memory": 512 },
       "env": {
         "MOCK_LOCUS_API": "false",
         "LOCUS_API_KEY": "${{LOCUS_API_KEY}}",
         "WEBHOOK_SECRET": "${{WEBHOOK_SECRET}}",
         "STOREFRONT_REPO": "sunilswain7/Popupstore",
-        "STOREFRONT_REPO_BRANCH": "main"
+        "STOREFRONT_REPO_BRANCH": "main",
+        "DATABASE_URL": "${{db.DATABASE_URL}}"
       }
     },
-    {
-      "name": "storefront",
-      "root": "storefront",
-      "runtime": {
-        "port": 8080,
-        "cpu": 256,
-        "memory": 512,
-        "minInstances": 1,
-        "maxInstances": 1
-      },
-      "healthCheckPath": "/"
+    "storefront": {
+      "path": "storefront",
+      "port": 8080,
+      "healthCheck": "/"
     }
-  ]
+  },
+  "addons": {
+    "db": { "type": "postgres" }
+  }
 }
