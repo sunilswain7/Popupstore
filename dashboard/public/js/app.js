@@ -443,7 +443,32 @@ async function showStore(id) {
     const data = await res.json();
     renderStoreDetail(data.store);
     document.getElementById('storeModal').classList.remove('hidden');
+    // Load analytics asynchronously
+    loadAnalytics(id);
   } catch {}
+}
+
+async function loadAnalytics(storeId) {
+  const container = document.getElementById('analyticsSection');
+  if (!container) return;
+  try {
+    const res = await fetch(`/api/stores/${storeId}/analytics`);
+    const data = await res.json();
+    if (data.error) {
+      container.innerHTML = '<div style="color:#6b7280;font-size:0.8rem">Analytics unavailable</div>';
+      return;
+    }
+    container.innerHTML = `
+      <div class="detail-grid">
+        <div class="detail-item"><label>Page Views</label><div class="value">${data.views}</div></div>
+        <div class="detail-item"><label>Checkout Clicks</label><div class="value">${data.clicks}</div></div>
+        <div class="detail-item"><label>Purchases</label><div class="value">${data.purchases}</div></div>
+        <div class="detail-item"><label>Conversion</label><div class="value">${data.conversionRate}</div></div>
+      </div>
+    `;
+  } catch {
+    container.innerHTML = '<div style="color:#6b7280;font-size:0.8rem">Analytics unavailable</div>';
+  }
 }
 
 function closeModal() {
@@ -495,6 +520,11 @@ function renderStoreDetail(store) {
     </div>
 
     ${store.locusServiceUrl ? `<div class="detail-item" style="margin-bottom:1rem"><label>Live URL</label><div class="value"><a href="${store.locusServiceUrl}" target="_blank" style="color:#3b82f6">${store.locusServiceUrl}</a></div></div>` : ''}
+
+    <h3 style="font-size:0.9rem;margin-bottom:0.75rem;color:#9ca3af">Traffic Analytics</h3>
+    <div id="analyticsSection" style="margin-bottom:1.5rem">
+      <div style="color:#6b7280;font-size:0.8rem">Loading analytics...</div>
+    </div>
 
     <h3 style="font-size:0.9rem;margin-bottom:0.75rem;color:#9ca3af">Items</h3>
     ${itemsHtml}

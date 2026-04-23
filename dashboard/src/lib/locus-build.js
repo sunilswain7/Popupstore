@@ -81,6 +81,17 @@ function mockBuildResponse(method, path, body) {
   if (path.startsWith('/services/') && method === 'DELETE') {
     return {};
   }
+  if (path.includes('/logs/search')) {
+    const isCheckout = path.includes('checkout_click') || (typeof body === 'string' && body.includes('checkout_click'));
+    return {
+      logs: [
+        { timestamp: new Date().toISOString(), message: JSON.stringify({ event: isCheckout ? 'checkout_click' : 'page_view', ts: Date.now() }) },
+        { timestamp: new Date().toISOString(), message: JSON.stringify({ event: isCheckout ? 'checkout_click' : 'page_view', ts: Date.now() }) },
+      ],
+      matchCount: isCheckout ? 2 : 12,
+      truncated: false,
+    };
+  }
   return {};
 }
 

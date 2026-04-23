@@ -43,7 +43,14 @@ app.get('/', (req, res) => {
   if (req.headers.accept && req.headers.accept.includes('application/json') && !req.headers.accept.includes('text/html')) {
     return res.json({ status: 'ok', storeId: config.storeId });
   }
+  console.log(JSON.stringify({ event: 'page_view', storeId: config.storeId, ts: Date.now() }));
   res.send(renderPage());
+});
+
+// Checkout click tracking
+app.get('/api/checkout-click/:itemId', (req, res) => {
+  console.log(JSON.stringify({ event: 'checkout_click', storeId: config.storeId, itemId: req.params.itemId, ts: Date.now() }));
+  res.json({ tracked: true });
 });
 
 app.get('/api/config', (req, res) => {
@@ -571,6 +578,14 @@ function renderPage() {
       const email = e.target.querySelector('input').value;
       e.target.innerHTML = '<div style="color:#22c55e;margin-top:0.5rem">Thanks! We will notify ' + email + '</div>';
     }
+
+    // Track checkout clicks
+    document.querySelectorAll('.buy-btn').forEach(btn => {
+      btn.addEventListener('click', function() {
+        const itemId = this.id.replace('btn-', '');
+        fetch('/api/checkout-click/' + itemId).catch(() => {});
+      });
+    });
 
     updateInventory();
     setInterval(updateInventory, 15000);

@@ -1,9 +1,30 @@
 const config = require('./config');
+const { callBuild } = require('./locus-build');
+
+async function fetchAnalytics(store) {
+  if (!store.locusServiceId) return { views: 0, clicks: 0 };
+  try {
+    const [viewsResult, clicksResult] = await Promise.all([
+      callBuild('GET', `/services/${store.locusServiceId}/logs/search?pattern=page_view&since=7d&limit=1000`).catch(() => ({ matchCount: 0, logs: [] })),
+      callBuild('GET', `/services/${store.locusServiceId}/logs/search?pattern=checkout_click&since=7d&limit=1000`).catch(() => ({ matchCount: 0, logs: [] })),
+    ]);
+    return {
+      views: viewsResult.matchCount || viewsResult.logs?.length || 0,
+      clicks: clicksResult.matchCount || clicksResult.logs?.length || 0,
+    };
+  } catch {
+    return { views: 0, clicks: 0 };
+  }
+}
 
 async function sendDropSummary(store, items, transactions) {
   const totalSold = items.reduce((sum, i) => sum + (i.inventoryTotal - i.inventoryRemaining), 0);
   const totalInventory = items.reduce((sum, i) => sum + i.inventoryTotal, 0);
   const revenue = transactions.reduce((sum, t) => sum + parseFloat(t.amountUsdc || 0), 0).toFixed(2);
+
+  // Fetch traffic analytics from Locus Build Logs API
+  const analytics = await fetchAnalytics(store);
+  const conversionRate = analytics.views > 0 ? ((totalSold / analytics.views) * 100).toFixed(1) : '0';
 
   const itemRows = items.map(i => {
     const sold = i.inventoryTotal - i.inventoryRemaining;
@@ -55,6 +76,25 @@ async function sendDropSummary(store, items, transactions) {
         </div>
       </div>
     </div>
+
+    ${analytics.views > 0 ? `
+    <div style="background:#111;border:1px solid #222;border-radius:12px;padding:1.5rem;margin-bottom:1.5rem">
+      <h3 style="color:#9ca3af;font-size:0.85rem;margin:0 0 0.75rem">Traffic Analytics</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem">
+        <div>
+          <div style="color:#6b7280;font-size:0.75rem;text-transform:uppercase">Page Views</div>
+          <div style="color:#f5f5f5;font-size:1.1rem;font-weight:600">${analytics.views}</div>
+        </div>
+        <div>
+          <div style="color:#6b7280;font-size:0.75rem;text-transform:uppercase">Checkout Clicks</div>
+          <div style="color:#3b82f6;font-size:1.1rem;font-weight:600">${analytics.clicks}</div>
+        </div>
+        <div>
+          <div style="color:#6b7280;font-size:0.75rem;text-transform:uppercase">Conversion</div>
+          <div style="color:#22c55e;font-size:1.1rem;font-weight:600">${conversionRate}%</div>
+        </div>
+      </div>
+    </div>` : ''}
 
     <div style="background:#111;border:1px solid #222;border-radius:12px;padding:1.5rem;margin-bottom:1.5rem">
       <h3 style="color:#9ca3af;font-size:0.85rem;margin:0 0 0.75rem">Items</h3>
