@@ -12,4 +12,4 @@ EXPOSE 8080
 COPY --from=deps /app/node_modules ./node_modules
 COPY dashboard/ .
 RUN npx prisma generate
-CMD ["sh", "-c", "npx prisma migrate deploy && node src/server.js"]
+CMD ["sh", "-c", "(npx prisma migrate deploy || echo Migration-skipped) && node src/server.js"]
