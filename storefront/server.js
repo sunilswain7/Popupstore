@@ -628,7 +628,7 @@ function esc(str) {
     .replace(/"/g, '&quot;');
 }
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Storefront listening on port ${PORT}`);
   console.log(`Drop: ${config.dropName} | Items: ${items.length} | Status: ${config.dropStatus}`);
 });

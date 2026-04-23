@@ -142,7 +142,7 @@ app.get('/stores/:id/thanks', (req, res) => {
 });
 
 // Start server
-app.listen(config.port, async () => {
+app.listen(config.port, '0.0.0.0', async () => {
   console.log(`PopupStore Dashboard listening on port ${config.port}`);
   console.log(`Mock mode: ${config.isMock}`);
 
