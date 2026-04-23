@@ -87,127 +87,440 @@ function renderPage() {
   const isArchived = status === 'ARCHIVED';
   const isSingle = items.length === 1;
 
+  const minPrice = items.reduce((a, b) => Math.min(a, Number(b.price) || Infinity), Infinity);
+  const totalInv = items.reduce((a, b) => a + (Number(b.inventoryTotal) || 0), 0);
+  const endsDisplay = config.endDate
+    ? new Date(config.endDate).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '—';
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${esc(config.dropName)} — PopupStore</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Pixelify+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --paper:      #E3F9FA;
+      --card:       #FFFFFF;
+      --rule:       #C9A2F5;
+      --ink:        #3D1B66;
+      --ink-soft:   #6E4FAD;
+      --muted:      #8A76B0;
+      --dim:        #B0A3CE;
+      --cyan:       #4AD9DE;
+      --cyan-soft:  #C4F0F2;
+      --pink:       #FF52A6;
+      --pink-dk:    #DB2D88;
+      --pink-soft:  #FFD5EA;
+      --yellow:     #FFD94A;
+      --yellow-soft:#FFF3A8;
+      --violet:     #B66DFF;
+      --violet-dk:  #8841DF;
+      --violet-soft:#E3CCFF;
+      --mint:       #9EF2D8;
+      --green:      #3FC29B;
+      --red:        #FF4F6B;
+      --red-soft:   #FFD0D7;
+    }
+    html { scroll-behavior: smooth; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #0a0a0a; color: #fff;
-      min-height: 100vh;
+      font-family: 'Inter', sans-serif;
+      color: var(--ink); background-color: var(--paper);
+      min-height: 100vh; line-height: 1.5; -webkit-font-smoothing: antialiased;
+      background-image:
+        radial-gradient(circle at 12% 15%, rgba(255,82,166,0.22) 3px, transparent 4px),
+        radial-gradient(circle at 86% 22%, rgba(255,217,74,0.25) 3px, transparent 4px),
+        radial-gradient(circle at 5% 62%, rgba(182,109,255,0.22) 3px, transparent 4px),
+        radial-gradient(circle at 94% 78%, rgba(74,217,222,0.28) 3px, transparent 4px),
+        radial-gradient(circle at 48% 92%, rgba(255,82,166,0.15) 3px, transparent 4px),
+        radial-gradient(circle at 40% 8%, rgba(182,109,255,0.18) 3px, transparent 4px),
+        linear-gradient(rgba(61,27,102,0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(61,27,102,0.05) 1px, transparent 1px);
+      background-size: auto, auto, auto, auto, auto, auto, 28px 28px, 28px 28px;
+      background-attachment: fixed;
     }
-    .page {
-      max-width: 900px; margin: 0 auto; padding: 2rem 1rem;
+    .page { max-width: 940px; margin: 0 auto; padding: 3rem 1.25rem 5rem; position: relative; }
+
+    /* Card with pixel-corner dots */
+    .card {
+      position: relative; background: var(--card);
+      border: 2px solid var(--ink); border-radius: 14px;
+      box-shadow: 4px 4px 0 var(--rule), 0 6px 16px rgba(61,27,102,0.06);
     }
-    .header {
-      text-align: center; margin-bottom: 2rem;
+    .card::before, .card::after {
+      content: ''; position: absolute; width: 6px; height: 6px;
+      border-radius: 1px; pointer-events: none;
     }
-    .badge {
-      display: inline-block; padding: 4px 14px; border-radius: 999px;
-      font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
-      letter-spacing: 0.05em; margin-bottom: 1rem;
+    .card::before { top: -3px; left: -3px; background: var(--violet); }
+    .card::after  { bottom: -3px; right: -3px; background: var(--pink); }
+
+    /* Top bar */
+    .top-bar {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 0.5rem 0.25rem 1rem; margin-bottom: 1.5rem;
+      border-bottom: 1px dashed var(--rule); flex-wrap: wrap; gap: 0.75rem;
     }
-    .badge.active { background: #22c55e20; color: #22c55e; border: 1px solid #22c55e40; }
-    .badge.sold-out { background: #ef444420; color: #ef4444; border: 1px solid #ef444440; }
-    .badge.archived { background: #6b728020; color: #9ca3af; border: 1px solid #6b728040; }
-    .header h1 { font-size: 2rem; margin-bottom: 0.5rem; }
-    .countdown { color: #f59e0b; font-size: 0.9rem; }
+    .brand {
+      display: inline-flex; align-items: center; gap: 0.65rem;
+      font-family: 'Pixelify Sans', sans-serif; font-weight: 700;
+      font-size: 1.1rem; color: var(--ink); letter-spacing: -0.01em;
+    }
+    .status-pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 10px; font-family: 'Inter', sans-serif;
+      font-size: 0.62rem; font-weight: 700; letter-spacing: 0.14em;
+      text-transform: uppercase; border: 2px solid var(--ink); border-radius: 999px;
+      box-shadow: 2px 2px 0 var(--ink);
+    }
+    .status-pill.live    { background: var(--mint);     color: var(--ink); }
+    .status-pill.live::before    { content: '●'; color: var(--green); }
+    .status-pill.sold    { background: var(--pink);     color: #fff; }
+    .status-pill.sold::before    { content: '●'; }
+    .status-pill.ended   { background: var(--violet-soft); color: var(--ink); }
+    .status-pill.ended::before   { content: '●'; color: var(--muted); }
+    .top-right {
+      display: flex; align-items: center; gap: 0.6rem;
+      font-family: 'Inter', sans-serif; font-size: 0.66rem;
+      font-weight: 600; letter-spacing: 0.18em; color: var(--muted);
+      text-transform: uppercase;
+    }
+    .dots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; }
+    .dots i { width: 3px; height: 3px; background: var(--dim); display: block; }
+
+    /* Hero */
+    .hero {
+      padding: 1.75rem 1.75rem 1.5rem; margin-bottom: 1.25rem;
+      display: grid; grid-template-columns: 1fr auto; gap: 1.5rem; align-items: center;
+    }
+    .hero h1 {
+      font-family: 'Pixelify Sans', sans-serif; font-weight: 700;
+      font-size: clamp(1.65rem, 4.4vw, 2.4rem); line-height: 1.1;
+      color: var(--ink); margin-bottom: 0.5rem; letter-spacing: -0.01em;
+    }
+    .hero .sub { font-size: 0.95rem; color: var(--ink-soft); margin-bottom: 1.1rem; max-width: 48ch; }
+    .chips { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+    .chip {
+      display: inline-flex; align-items: center; gap: 6px; height: 28px;
+      padding: 0 12px; border-radius: 999px;
+      font-family: 'Inter', sans-serif; font-size: 0.68rem; font-weight: 700;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      border: 2px solid var(--ink); white-space: nowrap;
+      box-shadow: 2px 2px 0 var(--ink);
+    }
+    .chip.live     { background: var(--mint);     color: var(--ink); }
+    .chip.live::before     { content: '●'; color: var(--green); }
+    .chip.sold     { background: var(--pink);     color: #fff; }
+    .chip.ended    { background: var(--violet-soft); color: var(--ink); }
+    .chip.timer    { background: var(--cyan-soft);   color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: 0.08em; }
+    .chip.items    { background: var(--yellow-soft); color: var(--ink); }
+    .chip.currency { background: var(--card); color: var(--pink-dk); }
+
+    .hero-thumb {
+      width: 128px; height: 128px; flex-shrink: 0;
+      background: var(--cyan-soft);
+      border: 2px solid var(--ink); border-radius: 12px;
+      box-shadow: 3px 3px 0 var(--pink);
+      display: grid; place-items: center; position: relative;
+    }
+    .hero-thumb .glyph {
+      font-size: 3.2rem; line-height: 1; color: var(--ink);
+      text-shadow: 3px 3px 0 var(--yellow);
+    }
+    @media (max-width: 560px) {
+      .hero { grid-template-columns: 1fr; }
+      .hero-thumb { width: 96px; height: 96px; justify-self: flex-start; }
+      .hero-thumb .glyph { font-size: 2.5rem; }
+    }
+
+    /* Stats card */
+    .stats-card { margin-bottom: 1.25rem; padding: 0; overflow: hidden; }
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); }
+    .stat { padding: 1rem 1.2rem; border-right: 2px solid var(--rule); }
+    .stat:last-child { border-right: none; }
+    .stat b {
+      display: block; font-family: 'Pixelify Sans', sans-serif; font-weight: 700;
+      font-size: 0.74rem; letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 6px;
+    }
+    .stat .v {
+      font-family: 'Inter', sans-serif; font-weight: 700;
+      font-size: 1.15rem; color: var(--ink); letter-spacing: -0.01em;
+      font-variant-numeric: tabular-nums;
+    }
+    .stat .v small { color: var(--muted); font-weight: 500; font-size: 0.82rem; margin-left: 5px; }
+    @media (max-width: 640px) {
+      .stats { grid-template-columns: 1fr 1fr; }
+      .stat:nth-child(3n+3) { border-right: none; }
+      .stat:not(:last-child) { border-bottom: 2px solid var(--rule); }
+    }
+
+    /* Section heading */
+    .eyebrow {
+      font-family: 'Pixelify Sans', sans-serif; font-weight: 700;
+      font-size: 0.86rem; letter-spacing: 0.08em; color: var(--ink);
+      text-transform: uppercase; display: inline-flex; align-items: center; gap: 0.5rem;
+    }
+    .eyebrow::before { content: '■'; color: var(--pink); font-size: 0.55rem; }
+    .section-heading {
+      display: flex; justify-content: space-between; align-items: center;
+      margin: 1.75rem 0 1rem; flex-wrap: wrap; gap: 0.5rem;
+    }
 
     /* Items grid */
     .items-grid {
       display: grid;
       grid-template-columns: ${isSingle ? '1fr' : 'repeat(auto-fill, minmax(260px, 1fr))'};
-      gap: 1.5rem;
-      ${isSingle ? 'max-width: 400px; margin: 0 auto;' : ''}
+      gap: 1.25rem; margin-bottom: 1.75rem;
+      ${isSingle ? 'max-width: 420px; margin-left: auto; margin-right: auto;' : ''}
     }
     .item-card {
-      background: #111; border: 1px solid #222; border-radius: 12px;
-      overflow: hidden; transition: border-color 0.2s;
+      position: relative; background: var(--card);
+      border: 2px solid var(--ink); border-radius: 12px;
+      box-shadow: 4px 4px 0 var(--violet);
+      padding: 0; overflow: hidden;
+      display: flex; flex-direction: column;
+      transition: transform .15s, box-shadow .2s;
     }
-    .item-card:hover { border-color: #333; }
+    .item-card::before, .item-card::after {
+      content: ''; position: absolute; width: 5px; height: 5px;
+      border-radius: 1px; pointer-events: none;
+    }
+    .item-card::before { top: -3px; left: -3px; background: var(--pink); }
+    .item-card::after  { bottom: -3px; right: -3px; background: var(--yellow); }
+    .item-card:nth-child(3n+2) { box-shadow: 4px 4px 0 var(--pink); }
+    .item-card:nth-child(3n+3) { box-shadow: 4px 4px 0 var(--yellow); }
+    .item-card:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 var(--violet); }
+    .item-card:nth-child(3n+2):hover { box-shadow: 6px 6px 0 var(--pink); }
+    .item-card:nth-child(3n+3):hover { box-shadow: 6px 6px 0 var(--yellow); }
     .item-image {
-      width: 100%; height: 200px; object-fit: cover;
+      width: 100%; height: 180px; object-fit: cover;
+      border-bottom: 2px solid var(--ink);
     }
     .item-image-placeholder {
-      width: 100%; height: 200px;
-      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 2.5rem;
+      width: 100%; height: 180px;
+      display: grid; place-items: center; font-size: 2.75rem;
+      color: var(--ink); text-shadow: 2px 2px 0 rgba(61,27,102,0.15);
+      border-bottom: 2px solid var(--ink);
     }
-    .item-body { padding: 1.25rem; }
-    .item-name { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem; }
-    .item-price { font-size: 1.5rem; font-weight: 700; color: #3b82f6; margin-bottom: 0.5rem; }
-    .item-price span { font-size: 0.85rem; color: #6b7280; font-weight: 400; }
-    .item-inventory { font-size: 0.85rem; color: #9ca3af; margin-bottom: 0.75rem; }
+    .item-card:nth-child(3n+1) .item-image-placeholder { background: var(--cyan-soft); }
+    .item-card:nth-child(3n+2) .item-image-placeholder { background: var(--pink-soft); }
+    .item-card:nth-child(3n+3) .item-image-placeholder { background: var(--violet-soft); }
+    .item-body { padding: 1rem 1.15rem 1.15rem; display: flex; flex-direction: column; flex: 1; }
+    .item-name {
+      font-family: 'Pixelify Sans', sans-serif; font-weight: 700;
+      font-size: 1.2rem; margin-bottom: 0.35rem; letter-spacing: -0.01em; color: var(--ink);
+    }
+    .item-price {
+      font-family: 'Pixelify Sans', sans-serif; font-weight: 700;
+      font-size: 1.4rem; color: var(--pink-dk); margin-bottom: 0.5rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .item-price span { font-size: 0.8rem; color: var(--muted); font-weight: 500; font-family: 'Inter', sans-serif; margin-left: 4px; }
+    .item-inventory { font-family: 'Inter', sans-serif; font-size: 0.84rem; color: var(--ink-soft); margin-bottom: 0.75rem; }
     .progress-bar {
-      width: 100%; height: 5px; background: #222; border-radius: 3px;
+      width: 100%; height: 10px; background: var(--cyan-soft);
+      border: 2px solid var(--ink); border-radius: 3px;
       margin-bottom: 1rem; overflow: hidden;
     }
     .progress-fill {
-      height: 100%; background: linear-gradient(90deg, #3b82f6, #8b5cf6);
-      border-radius: 3px; transition: width 0.3s;
+      height: 100%; background: var(--pink);
+      transition: width 0.3s;
     }
     .buy-btn {
-      display: block; width: 100%; padding: 0.75rem; text-align: center;
-      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-      color: #fff; font-size: 0.95rem; font-weight: 600;
-      border: none; border-radius: 8px; cursor: pointer;
-      text-decoration: none; transition: opacity 0.2s;
+      display: block; width: 100%; margin-top: auto;
+      padding: 0.78rem; text-align: center;
+      background: var(--pink); color: #fff;
+      font-family: 'Pixelify Sans', sans-serif; font-weight: 700; font-size: 1rem;
+      letter-spacing: 0.02em;
+      border: 2px solid var(--ink); border-radius: 6px;
+      text-decoration: none; cursor: pointer;
+      box-shadow: 3px 3px 0 var(--ink);
+      transition: transform .1s, box-shadow .1s, background .15s;
     }
-    .buy-btn:hover { opacity: 0.9; }
-    .buy-btn.disabled { opacity: 0.4; cursor: not-allowed; background: #374151; }
+    .buy-btn:hover { background: var(--pink-dk); transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--ink); }
+    .buy-btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+    .buy-btn.disabled {
+      background: var(--dim); color: var(--ink); cursor: not-allowed;
+      box-shadow: 2px 2px 0 var(--ink);
+    }
+    .buy-btn.disabled:hover { transform: none; box-shadow: 2px 2px 0 var(--ink); }
 
+    /* Message / waitlist */
     .message-box {
-      margin-top: 1.5rem; padding: 1.25rem; border-radius: 10px;
-      background: #111; border: 1px solid #222; color: #9ca3af;
-      text-align: center; font-size: 0.95rem;
+      padding: 1.5rem; text-align: center;
+      font-family: 'Inter', sans-serif; font-size: 0.95rem; color: var(--ink);
+      margin-bottom: 1.5rem;
+    }
+    .message-box h2 {
+      font-family: 'Pixelify Sans', sans-serif; font-weight: 700;
+      font-size: 1.4rem; margin-bottom: 0.4rem; color: var(--ink); letter-spacing: -0.01em;
     }
     .waitlist-form {
-      margin-top: 1rem; display: flex; gap: 0.5rem; max-width: 400px; margin-left: auto; margin-right: auto;
+      margin-top: 1.25rem; display: flex; gap: 0.5rem;
+      max-width: 420px; margin-left: auto; margin-right: auto;
     }
     .waitlist-form input {
-      flex: 1; padding: 0.6rem 1rem; border-radius: 8px;
-      border: 1px solid #333; background: #0a0a0a; color: #fff; font-size: 0.9rem;
+      flex: 1; padding: 0.65rem 0.9rem; border-radius: 6px;
+      border: 2px solid var(--ink); background: var(--paper);
+      color: var(--ink); font-family: 'Inter', sans-serif; font-size: 0.9rem;
     }
+    .waitlist-form input:focus { outline: none; background: #fff; box-shadow: 3px 3px 0 var(--pink); }
     .waitlist-form button {
-      padding: 0.6rem 1.25rem; border-radius: 8px;
-      background: #8b5cf6; color: #fff; border: none; font-weight: 600; cursor: pointer;
+      padding: 0.65rem 1.25rem; border-radius: 6px;
+      background: var(--pink); color: #fff; border: 2px solid var(--ink);
+      font-family: 'Pixelify Sans', sans-serif; font-weight: 700; font-size: 0.92rem;
+      cursor: pointer; box-shadow: 3px 3px 0 var(--ink);
+      transition: transform .1s, box-shadow .1s;
     }
+    .waitlist-form button:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--ink); }
+    .waitlist-form button:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+
+    /* How to buy */
+    .how { padding: 1.75rem; margin-bottom: 1rem; }
+    .how h2 {
+      font-family: 'Pixelify Sans', sans-serif; font-weight: 700;
+      font-size: 1.55rem; color: var(--ink); letter-spacing: -0.01em; margin-bottom: 0.3rem;
+    }
+    .how-sub { font-size: 0.92rem; color: var(--muted); margin-bottom: 1.25rem; }
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.25rem; }
+    .step {
+      padding: 1rem 1.1rem; border: 2px solid var(--ink); border-radius: 10px;
+      box-shadow: 3px 3px 0 var(--ink);
+    }
+    .step:nth-child(1) { background: var(--cyan-soft); }
+    .step:nth-child(2) { background: var(--yellow-soft); }
+    .step:nth-child(3) { background: var(--violet-soft); }
+    .step-num {
+      display: inline-grid; place-items: center;
+      width: 30px; height: 30px; margin-bottom: 0.5rem;
+      background: var(--card); border: 2px solid var(--ink); border-radius: 50%;
+      font-family: 'Pixelify Sans', sans-serif; font-weight: 700;
+      font-size: 1rem; color: var(--ink);
+      box-shadow: 2px 2px 0 var(--ink);
+    }
+    .step h3 {
+      font-family: 'Pixelify Sans', sans-serif; font-weight: 700;
+      font-size: 1.05rem; color: var(--ink); margin-bottom: 0.3rem; letter-spacing: -0.01em;
+    }
+    .step p { font-size: 0.84rem; color: var(--ink); line-height: 1.45; opacity: 0.85; }
+    @media (max-width: 640px) { .steps { grid-template-columns: 1fr; } }
+
+    .trust-row { display: flex; gap: 0.5rem; flex-wrap: wrap; padding-top: 1rem; border-top: 2px dashed var(--rule); }
+    .trust {
+      flex: 1; min-width: 180px;
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 8px 12px; background: var(--paper);
+      border: 2px solid var(--ink); border-radius: 8px;
+      font-size: 0.84rem; color: var(--ink); font-weight: 500;
+    }
+    .trust b { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 5px; font-weight: 700; font-size: 0.85rem; border: 1.5px solid var(--ink); }
+    .trust:nth-child(1) b { background: var(--cyan-soft); }
+    .trust:nth-child(2) b { background: var(--yellow-soft); }
+    .trust:nth-child(3) b { background: var(--pink-soft); }
+
     .powered-by {
-      margin-top: 2.5rem; text-align: center; font-size: 0.75rem; color: #4b5563;
+      margin-top: 2rem; text-align: center;
+      font-family: 'Inter', sans-serif; font-size: 0.82rem; color: var(--muted);
     }
-    .powered-by a { color: #6b7280; text-decoration: none; }
+    .powered-by a { color: var(--pink-dk); text-decoration: none; font-weight: 600; border-bottom: 1px dotted var(--pink-dk); }
   </style>
 </head>
 <body>
   <div class="page">
-    <div class="header">
-      ${isActive ? '<span class="badge active">Live Drop</span>'
-        : isSoldOut ? '<span class="badge sold-out">Sold Out</span>'
-        : '<span class="badge archived">Ended</span>'}
-      <h1>${esc(config.dropName)}</h1>
-      ${isActive && config.endDate ? '<div class="countdown" id="countdown"></div>' : ''}
+    <div class="top-bar">
+      <span class="brand">PopupStore
+        ${isActive ? '<span class="status-pill live">Live</span>'
+          : isSoldOut ? '<span class="status-pill sold">Sold Out</span>'
+          : '<span class="status-pill ended">Ended</span>'}
+      </span>
+      <span class="top-right">USDC-ready
+        <span class="dots"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      </span>
     </div>
 
-    ${isActive ? renderItemsGrid() : ''}
+    <section class="card hero">
+      <div class="hero-body">
+        <h1>${esc(config.dropName)}</h1>
+        <p class="sub">${
+          isActive ? 'Grab yours before the drop ends. USDC payments, no wallet needed.'
+          : isSoldOut ? 'Sold out — thanks to everyone who grabbed one.'
+          : 'This drop has ended. Thanks for visiting.'
+        }</p>
+        <div class="chips">
+          ${isActive ? '<span class="chip live">Live</span>'
+            : isSoldOut ? '<span class="chip sold">Sold Out</span>'
+            : '<span class="chip ended">Ended</span>'}
+          ${isActive && config.endDate ? '<span class="chip timer" id="countdown">--:--:--</span>' : ''}
+          <span class="chip items">${items.length} item${items.length === 1 ? '' : 's'}</span>
+          <span class="chip currency">USDC</span>
+        </div>
+      </div>
+      <div class="hero-thumb"><span class="glyph">✦</span></div>
+    </section>
+
+    ${isActive ? `
+    <section class="card stats-card">
+      <div class="stats">
+        <div class="stat"><b>Price from</b><span class="v">$${esc(String(Number.isFinite(minPrice) ? minPrice : 0))}<small>USDC</small></span></div>
+        <div class="stat"><b>Items</b><span class="v">${items.length}<small>total in drop</small></span></div>
+        <div class="stat"><b>Ends</b><span class="v">${esc(endsDisplay)}</span></div>
+      </div>
+    </section>` : ''}
+
+    ${isActive ? `
+    <div class="section-heading">
+      <span class="eyebrow">Drop items</span>
+      ${totalInv > 0 ? `<span class="eyebrow" style="color: var(--pink-dk);">${totalInv} across ${items.length}</span>` : ''}
+    </div>
+    ${renderItemsGrid()}` : ''}
 
     ${isSoldOut && config.showWaitlist
-      ? `<div class="message-box">This drop is sold out!
+      ? `<section class="card message-box">
+           <h2>Get restock alerts</h2>
+           <p>This drop is sold out. Drop your email and we'll ping you if more become available.</p>
            <form class="waitlist-form" onsubmit="joinWaitlist(event)">
-             <input type="email" placeholder="Email for restock alerts" required>
+             <input type="email" placeholder="your@email.com" required>
              <button type="submit">Notify Me</button>
-           </form></div>`
+           </form>
+         </section>`
       : isSoldOut
-        ? '<div class="message-box">This drop is sold out. Thanks to everyone who grabbed one!</div>'
+        ? '<section class="card message-box"><h2>Sold out</h2><p>Thanks to everyone who grabbed one!</p></section>'
         : isArchived
-          ? '<div class="message-box">This drop has ended. Thanks for visiting!</div>'
+          ? '<section class="card message-box"><h2>This drop has ended</h2><p>Thanks for visiting — check back next time.</p></section>'
           : ''}
 
-    <div class="powered-by">Powered by <a href="https://buildwithlocus.com">Locus</a></div>
+    ${isActive ? `
+    <section class="card how">
+      <h2>How to buy</h2>
+      <p class="how-sub">Simple and instant. No wallet or signup needed.</p>
+      <div class="steps">
+        <div class="step">
+          <span class="step-num">1</span>
+          <h3>Pick an item</h3>
+          <p>Choose what you want from the drop above. Stock updates live.</p>
+        </div>
+        <div class="step">
+          <span class="step-num">2</span>
+          <h3>Pay with USDC</h3>
+          <p>Checkout opens in your browser. No wallet needed to get started.</p>
+        </div>
+        <div class="step">
+          <span class="step-num">3</span>
+          <h3>We ship fast</h3>
+          <p>Tracked shipping worldwide. Confirmation lands in your inbox.</p>
+        </div>
+      </div>
+      <div class="trust-row">
+        <span class="trust"><b>⚡</b>Instant USDC checkout</span>
+        <span class="trust"><b>🔒</b>No wallet needed</span>
+        <span class="trust"><b>✓</b>Secured by Locus</span>
+      </div>
+    </section>` : ''}
+
+    <div class="powered-by">Powered by <a href="https://buildwithlocus.com">BuildWithLocus</a> + <a href="https://paywithlocus.com">PaywithLocus</a></div>
   </div>
 
   <script>
