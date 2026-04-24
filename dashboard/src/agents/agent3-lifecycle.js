@@ -12,6 +12,7 @@ const VALID_TRANSITIONS = {
   ACTIVE: ['SOLD_OUT', 'ARCHIVED'],
   SOLD_OUT: ['ARCHIVED'],
   ARCHIVED: ['DELETED'],
+  FAILED: ['ACTIVE', 'ARCHIVED', 'DELETED'],
 };
 
 function canTransition(from, to) {

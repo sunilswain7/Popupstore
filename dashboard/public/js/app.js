@@ -529,8 +529,8 @@ function renderStoreDetail(store) {
     ? `${Math.floor(remaining / 3600000)}h ${Math.floor((remaining % 3600000) / 60000)}m`
     : 'Ended';
 
-  const canArchive = ['ACTIVE', 'SOLD_OUT'].includes(store.status);
-  const canDelete = store.status === 'ARCHIVED';
+  const canArchive = ['ACTIVE', 'SOLD_OUT', 'FAILED'].includes(store.status);
+  const canDelete = ['ARCHIVED', 'FAILED'].includes(store.status);
   const canReactivate = store.status === 'FAILED';
 
   const itemsHtml = (store.items || []).map(item => {
