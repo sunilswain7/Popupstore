@@ -48,7 +48,9 @@ if (items.length === 0) {
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
-// Health check
+// Dedicated health check — lightweight, no logging, fast response for ECS
+app.get('/health', (req, res) => res.send('ok'));
+
 app.get('/', (req, res) => {
   if (req.headers.accept && req.headers.accept.includes('application/json') && !req.headers.accept.includes('text/html')) {
     return res.json({ status: 'ok', storeId: config.storeId });

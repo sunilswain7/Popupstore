@@ -115,7 +115,7 @@ async function runBuilder(spec, storeId) {
       minInstances: 1,
       maxInstances: 1,
     },
-    healthCheckPath: '/',
+    healthCheckPath: '/health',
   });
 
   const serviceId = service.id;
@@ -150,20 +150,39 @@ async function runBuilder(spec, storeId) {
     },
   });
 
-  // Trigger deployment
-  emit('agent2:progress', { message: 'Triggering deployment (3-7 min for source builds)...' }, storeId);
-  const deployment = await callBuild('POST', '/deployments', { serviceId });
-  const deploymentId = deployment.id;
-  await prisma.store.update({ where: { id: storeId }, data: { locusDeploymentId: deploymentId } });
-  emit('agent2:deploy_started', { deploymentId, serviceId }, storeId);
+  // Trigger deployment with up to 2 automatic retries
+  const MAX_DEPLOY_ATTEMPTS = 3;
+  let finalStatus = 'failed';
+  let deploymentId = null;
 
-  // Monitor deployment
-  const finalStatus = await monitorDeployment(deploymentId, storeId);
+  for (let attempt = 1; attempt <= MAX_DEPLOY_ATTEMPTS; attempt++) {
+    const isRetry = attempt > 1;
+    if (isRetry) {
+      emit('agent2:progress', { message: `Retry ${attempt - 1}/${MAX_DEPLOY_ATTEMPTS - 1} — redeploying...` }, storeId);
+      const retryDeploy = await callBuild('POST', `/services/${serviceId}/redeploy`, {});
+      deploymentId = retryDeploy.id || deploymentId;
+    } else {
+      emit('agent2:progress', { message: 'Triggering deployment (3-7 min for source builds)...' }, storeId);
+      const deployment = await callBuild('POST', '/deployments', { serviceId });
+      deploymentId = deployment.id;
+    }
 
-  if (finalStatus === 'failed') {
+    await prisma.store.update({ where: { id: storeId }, data: { locusDeploymentId: deploymentId } });
+    emit('agent2:deploy_started', { deploymentId, serviceId, attempt }, storeId);
+
+    finalStatus = await monitorDeployment(deploymentId, storeId);
+
+    if (finalStatus === 'healthy') break;
+
+    if (attempt < MAX_DEPLOY_ATTEMPTS) {
+      emit('agent2:warning', { message: `Deploy attempt ${attempt} failed — will retry automatically...` }, storeId);
+    }
+  }
+
+  if (finalStatus !== 'healthy') {
     await prisma.store.update({ where: { id: storeId }, data: { status: 'FAILED' } });
     emit('agent2:deploy_failed', { deploymentId }, storeId);
-    throw new Error('Deployment failed');
+    throw new Error(`Deployment failed after ${MAX_DEPLOY_ATTEMPTS} attempts`);
   }
 
   // Recalculate endDate based on NOW + original duration (not parse time)

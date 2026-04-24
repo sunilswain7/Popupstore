@@ -284,21 +284,23 @@ function connectSSE(storeId) {
       d.items?.forEach(i => addChat('agent2', `  ${i.name} — $${i.price} USDC`));
     },
     'agent2:service_created': (d) => addChat('agent2', `Service created at ${d.serviceUrl}`),
-    'agent2:deploy_started': (d) => addChat('agent2', `Deployment started — building from source...`),
+    'agent2:deploy_started': (d) => addChat('agent2', d.attempt > 1 ? `Retry deploy attempt ${d.attempt} started...` : `Deployment started — building from source...`),
     'agent2:deploy_status': (d) => {
       const icon = d.status === 'deploying' ? 'building' : d.status;
       updateLastDeployStatus(`Deployment status: ${icon} (check ${d.poll})`);
     },
     'agent2:store_live': (d) => {
       addChat('success', `Your drop is LIVE!`);
-      addChat('success', d.slug ? `Share link: /s/${d.slug}` : d.url);
+      if (d.url) {
+        addChatLink('success', 'Visit your store', d.url);
+      }
       document.getElementById('pipelineStatus').textContent = 'Complete';
       document.getElementById('pipelineStatus').classList.add('status-done');
       showNewDropButton();
       loadStores();
     },
     'agent2:deploy_failed': () => {
-      addChat('error', 'Deployment failed. Check build logs on Locus dashboard.');
+      addChat('error', 'Deployment failed after all retry attempts. Check build logs on Locus dashboard.');
       document.getElementById('pipelineStatus').textContent = 'Failed';
     },
     'agent2:error': (d) => {
@@ -357,6 +359,50 @@ function addChat(type, message) {
 
   events.appendChild(div);
   events.scrollTop = events.scrollHeight;
+}
+
+function addChatLink(type, label, url) {
+  const events = document.getElementById('events');
+  const div = document.createElement('div');
+  div.className = `chat-msg chat-${type}`;
+
+  const labels = {
+    system: 'System', agent1: 'SpecGuard', agent2: 'Builder',
+    agent3: 'Monitor', success: 'Done', error: 'Error', warning: 'Warning',
+  };
+
+  const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+  const copyId = 'copy-' + Date.now();
+  div.innerHTML = `
+    <div class="chat-meta">
+      <span class="chat-label">${labels[type] || type}</span>
+      <span class="chat-time">${time}</span>
+    </div>
+    <div class="chat-text" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <a href="${escapeAttr(url)}" target="_blank" rel="noopener" style="color:#3b82f6;text-decoration:underline;font-weight:600">${escapeHtml(label)}: ${escapeHtml(url)}</a>
+      <button id="${copyId}" onclick="copyStoreUrl(this, '${escapeAttr(url)}')" style="background:none;border:1.5px solid #d1d5db;border-radius:5px;padding:3px 8px;cursor:pointer;font-size:0.75rem;color:#6b7280;display:inline-flex;align-items:center;gap:4px;transition:all .15s">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy
+      </button>
+    </div>
+  `;
+
+  events.appendChild(div);
+  events.scrollTop = events.scrollHeight;
+}
+
+function copyStoreUrl(btn, url) {
+  navigator.clipboard.writeText(url).then(() => {
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> Copied!';
+    btn.style.color = '#22c55e';
+    btn.style.borderColor = '#22c55e';
+    setTimeout(() => {
+      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy';
+      btn.style.color = '#6b7280';
+      btn.style.borderColor = '#d1d5db';
+    }, 2000);
+  });
 }
 
 // Update the last deploy status line instead of adding new ones
