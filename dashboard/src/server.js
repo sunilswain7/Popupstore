@@ -51,7 +51,9 @@ app.post('/webhooks/checkout', express.raw({ type: '*/*' }), async (req, res) =>
 
   const signature = req.headers['x-signature-256'];
   if (signature && config.webhookSecret !== 'dev-secret') {
-    const bodyStr = typeof req.body === 'string' ? req.body : req.body.toString();
+    const bodyStr = Buffer.isBuffer(req.body) ? req.body.toString('utf8')
+      : typeof req.body === 'string' ? req.body
+      : JSON.stringify(req.body);
     const expected = crypto
       .createHmac('sha256', config.webhookSecret)
       .update(bodyStr)
@@ -68,8 +70,15 @@ app.post('/webhooks/checkout', express.raw({ type: '*/*' }), async (req, res) =>
   }
 
   try {
-    const bodyStr = typeof req.body === 'string' ? req.body : req.body.toString();
-    const payload = JSON.parse(bodyStr);
+    // Body may already be parsed by global express.json(), or raw Buffer
+    let payload;
+    if (typeof req.body === 'object' && !Buffer.isBuffer(req.body)) {
+      payload = req.body;
+    } else {
+      const bodyStr = typeof req.body === 'string' ? req.body : req.body.toString('utf8');
+      payload = JSON.parse(bodyStr);
+    }
+
     const event = payload.event || payload.type;
 
     if (event === 'checkout.session.paid') {
@@ -81,6 +90,8 @@ app.post('/webhooks/checkout', express.raw({ type: '*/*' }), async (req, res) =>
         payerAddress: data.payerAddress || data.payer_address || 'unknown',
         txHash: data.txHash || data.tx_hash || null,
         eventId: payload.id || `evt_${Date.now()}`,
+        itemIndex: data.metadata?.itemIndex,
+        checkoutSessionId: data.id || data.sessionId || null,
       });
     }
 
