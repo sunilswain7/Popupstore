@@ -1,7 +1,7 @@
 {
   "services": {
     "dashboard": {
-      "path": ".",
+      "path": "dashboard",
       "port": 8080,
       "healthCheck": "/",
       "startCommand": "(npx prisma migrate deploy || echo Migration-skipped) && node src/server.js",
