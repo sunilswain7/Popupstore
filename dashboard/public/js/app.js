@@ -531,6 +531,7 @@ function renderStoreDetail(store) {
 
   const canArchive = ['ACTIVE', 'SOLD_OUT'].includes(store.status);
   const canDelete = store.status === 'ARCHIVED';
+  const canReactivate = store.status === 'FAILED';
 
   const itemsHtml = (store.items || []).map(item => {
     const sold = item.inventoryTotal - item.inventoryRemaining;
@@ -571,6 +572,7 @@ function renderStoreDetail(store) {
     <div class="detail-actions-wrap">
       ${store.locusServiceUrl ? `<div class="detail-actions-visit"><a href="${store.locusServiceUrl}" target="_blank" class="btn btn-primary">Visit Store</a></div>` : ''}
       <div class="detail-actions-secondary">
+        ${canReactivate ? `<button class="btn btn-primary" onclick="overrideStore('${store.id}','REACTIVATE')">Reactivate</button>` : ''}
         <button class="btn btn-warning" ${canArchive ? '' : 'disabled'} onclick="overrideStore('${store.id}','ARCHIVE')">Archive Now</button>
         <button class="btn btn-danger" ${canDelete ? '' : 'disabled'} onclick="overrideStore('${store.id}','DELETE')">Delete Now</button>
       </div>
