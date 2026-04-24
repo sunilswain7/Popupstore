@@ -205,7 +205,7 @@ async function runBuilder(spec, storeId) {
 
 async function monitorDeployment(deploymentId, storeId) {
   const TERMINAL = ['healthy', 'failed', 'cancelled', 'rolled_back'];
-  const MAX_POLLS = 20;
+  const MAX_POLLS = 40;
   const POLL_INTERVAL = config.isMock ? 100 : 30000;
 
   for (let i = 0; i < MAX_POLLS; i++) {
