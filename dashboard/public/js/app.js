@@ -9,7 +9,7 @@ document.getElementById('dropForm').addEventListener('submit', async (e) => {
 
   const btn = document.getElementById('parseBtn');
   btn.disabled = true;
-  btn.textContent = 'Parsing...';
+  btn.textContent = 'Building...';
 
   try {
     const res = await fetch('/api/drops/parse', {
@@ -38,7 +38,7 @@ document.getElementById('dropForm').addEventListener('submit', async (e) => {
     alert('Failed to parse: ' + err.message);
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Parse Drop';
+    btn.textContent = 'Pay $0.05 to build';
   }
 });
 
@@ -134,7 +134,6 @@ async function launchPipeline(spec) {
 
 // ── Step 2: Review form (only shown when there are errors) ──
 function showReviewForm(spec, errors) {
-  document.getElementById('step1').classList.add('hidden');
   document.getElementById('step2').classList.remove('hidden');
 
   document.getElementById('reviewDropName').value = spec.dropName || '';
@@ -256,7 +255,6 @@ function showFieldErrors(errors) {
 // Back button
 document.getElementById('backBtn').addEventListener('click', () => {
   document.getElementById('step2').classList.add('hidden');
-  document.getElementById('step1').classList.remove('hidden');
 });
 
 // ── Confirm & Launch (from review form) ──
@@ -492,14 +490,14 @@ function renderStoreDetail(store) {
     const sold = item.inventoryTotal - item.inventoryRemaining;
     const pct = item.inventoryTotal > 0 ? (item.inventoryRemaining / item.inventoryTotal) * 100 : 0;
     return `
-      <div style="background:#0a0a0a;border:1px solid #222;border-radius:8px;padding:1rem;margin-bottom:0.5rem">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
-          <strong style="color:#f5f5f5">${escapeHtml(item.productName)}</strong>
-          <span style="color:#3b82f6;font-weight:600">$${item.priceUsdc} USDC</span>
+      <div class="item-detail-card">
+        <div class="item-detail-row">
+          <strong class="item-detail-name">${escapeHtml(item.productName)}</strong>
+          <span class="item-detail-price">$${item.priceUsdc} USDC</span>
         </div>
-        <div style="font-size:0.8rem;color:#9ca3af;margin-bottom:0.5rem">${sold}/${item.inventoryTotal} sold (${item.inventoryRemaining} left)</div>
-        <div style="width:100%;height:4px;background:#222;border-radius:2px;overflow:hidden">
-          <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#3b82f6,#8b5cf6);border-radius:2px"></div>
+        <div class="item-detail-meta">${sold}/${item.inventoryTotal} sold (${item.inventoryRemaining} left)</div>
+        <div class="item-detail-bar-track">
+          <div class="item-detail-bar-fill" style="width:${pct}%"></div>
         </div>
       </div>`;
   }).join('');
@@ -513,26 +511,23 @@ function renderStoreDetail(store) {
     <div class="detail-grid">
       <div class="detail-item"><label>Items</label><div class="value">${store.items?.length || 0}</div></div>
       <div class="detail-item"><label>Sold</label><div class="value">${totalSold}/${totalInv}</div></div>
-      <div class="detail-item"><label>Revenue</label><div class="value">$${revenue} USDC</div></div>
-      <div class="detail-item"><label>Time Left</label><div class="value">${timeLeft}</div></div>
-      <div class="detail-item"><label>Post-Drop</label><div class="value">${store.postDropAction}</div></div>
       <div class="detail-item"><label>Created</label><div class="value">${new Date(store.createdAt).toLocaleDateString()}</div></div>
+      <div class="detail-item"><label>Time Left</label><div class="value">${timeLeft}</div></div>
+      <div class="detail-item"><label>Post-Drop</label><div class="value detail-value-wrap">${store.postDropAction}</div></div>
+      <div class="detail-item"><label>Revenue</label><div class="value">$${revenue} USDC</div></div>
     </div>
 
     ${store.locusServiceUrl ? `<div class="detail-item" style="margin-bottom:1rem"><label>Live URL</label><div class="value"><a href="${store.locusServiceUrl}" target="_blank" style="color:#3b82f6">${store.locusServiceUrl}</a></div></div>` : ''}
 
-    <h3 style="font-size:0.9rem;margin-bottom:0.75rem;color:#9ca3af">Traffic Analytics</h3>
-    <div id="analyticsSection" style="margin-bottom:1.5rem">
-      <div style="color:#6b7280;font-size:0.8rem">Loading analytics...</div>
-    </div>
-
-    <h3 style="font-size:0.9rem;margin-bottom:0.75rem;color:#9ca3af">Items</h3>
+    <h3 class="items-section-heading">Items</h3>
     ${itemsHtml}
 
-    <div class="detail-actions" style="margin-top:1rem">
-      <button class="btn btn-warning" ${canArchive ? '' : 'disabled'} onclick="overrideStore('${store.id}','ARCHIVE')">Archive Now</button>
-      <button class="btn btn-danger" ${canDelete ? '' : 'disabled'} onclick="overrideStore('${store.id}','DELETE')">Delete Now</button>
-      ${store.locusServiceUrl ? `<a href="${store.locusServiceUrl}" target="_blank" class="btn btn-primary">Visit Store</a>` : ''}
+    <div class="detail-actions-wrap">
+      ${store.locusServiceUrl ? `<div class="detail-actions-visit"><a href="${store.locusServiceUrl}" target="_blank" class="btn btn-primary">Visit Store</a></div>` : ''}
+      <div class="detail-actions-secondary">
+        <button class="btn btn-warning" ${canArchive ? '' : 'disabled'} onclick="overrideStore('${store.id}','ARCHIVE')">Archive Now</button>
+        <button class="btn btn-danger" ${canDelete ? '' : 'disabled'} onclick="overrideStore('${store.id}','DELETE')">Delete Now</button>
+      </div>
     </div>
 
     <div class="tx-list">

@@ -4,94 +4,324 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PopupStore Dashboard</title>
+  <meta name="description" content="Autonomous USDC storefronts — launch a limited drop in one sentence.">
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
+
+  <!-- ── STICKY NAVBAR ─────────────────────────────────────────── -->
+  <nav class="navbar" id="navbar">
+    <div class="navbar-inner">
+      <div class="navbar-brand">
+        <span class="brand-pixel">■</span>
+        <span class="brand-name">PopupStore</span>
+      </div>
+      <ul class="navbar-links">
+        <li><a href="#about" class="nav-link">About</a></li>
+        <li><a href="#drops" class="nav-link">Your Drops</a></li>
+        <li><button class="nav-link nav-signout" onclick="void 0">Sign out</button></li>
+      </ul>
+    </div>
+  </nav>
+
   <div class="app">
-    <header>
-      <h1>PopupStore</h1>
-      <p class="subtitle">Autonomous USDC Storefronts</p>
-    </header>
 
-    <!-- Step 1: Describe Drop -->
-    <section class="create-section" id="step1">
-      <h2>Create a Drop</h2>
-      <form id="dropForm">
-        <textarea id="dropInput" placeholder='Describe your drop... e.g. "Selling 20 signed prints at $25 and 50 stickers at $5, drop ends Sunday"' rows="3"></textarea>
-        <button type="submit" id="parseBtn">Parse Drop</button>
-      </form>
-    </section>
+    <!-- ── HERO SECTION ──────────────────────────────────────────── -->
+    <section class="hero-section" id="hero">
+      <div class="hero-grid">
 
-    <!-- Step 2: Review & Edit Parsed Spec -->
-    <section class="review-section hidden" id="step2">
-      <h2>Review Your Drop</h2>
-      <p class="review-subtitle">We parsed your description. Review and fix any issues below.</p>
+        <!-- LEFT: Launch Drop Panel -->
+        <div class="launch-panel" id="step1">
+          <div class="panel-header">
+            <span class="panel-header-dot"></span>
+            <span class="panel-header-title">DROP BUILDER</span>
+          </div>
+          <div class="panel-body">
+            <h1 class="launch-heading">Launch a limited drop<br>in one sentence.</h1>
+            <p class="launch-subtext">Describe your product. PopupStore builds the storefront instantly.</p>
 
-      <div class="review-form">
-        <div class="form-group">
-          <label for="reviewDropName">Drop Name</label>
-          <input type="text" id="reviewDropName" placeholder="e.g. Art Print Drop">
-          <span class="field-error" id="err-dropName"></span>
+            <form id="dropForm">
+              <textarea
+                id="dropInput"
+                class="drop-textarea"
+                placeholder='e.g. "Sell 20 signed prints at $25, drop ends Sunday"'
+                rows="4"
+              ></textarea>
+
+              <div class="chip-row">
+                <button type="button" class="chip" onclick="document.getElementById('dropInput').value='Sell 15 posters at $10, ends Friday'">Sell 15 posters at $10, ends Friday</button>
+                <button type="button" class="chip" onclick="document.getElementById('dropInput').value='25 signed prints at $40, 2-day drop'">25 signed prints at $40, 2-day drop</button>
+                <button type="button" class="chip" onclick="document.getElementById('dropInput').value='Limited hoodie drop ends Sunday night'">Limited hoodie drop ends Sunday night</button>
+              </div>
+
+              <button type="submit" id="parseBtn" class="generate-btn">
+                <span class="generate-btn-icon">▶</span>
+                Pay $0.05 to build
+              </button>
+            </form>
+          </div>
         </div>
 
-        <div class="form-group">
-          <label for="reviewEndDate">End Date & Time</label>
-          <input type="datetime-local" id="reviewEndDate">
-          <span class="field-error" id="err-endDate"></span>
+        <!-- RIGHT: Pipeline Console -->
+        <div class="console-panel" id="pipeline">
+          <div class="console-header">
+            <div class="console-header-left">
+              <span class="console-dot pulse"></span>
+              <span class="console-title">Pipeline Console</span>
+            </div>
+            <div class="console-header-right">
+              <span class="console-badge" id="pipelineStatus">WAITING FOR INPUT</span>
+            </div>
+          </div>
+
+          <!-- Idle workflow — shown before any drop is submitted -->
+          <div class="console-body" id="events">
+            <div class="workflow-idle" id="workflowIdle">
+              <div class="wf-step wf-step-visible" data-step="1" id="wfStep1">
+                <div class="wf-step-header">
+                  <span class="wf-status-dot idle"></span>
+                  <span class="wf-label">System</span>
+                  <span class="wf-time">—</span>
+                </div>
+                <div class="wf-text">Waiting for seller input<span class="dot1">.</span><span class="dot2">.</span><span class="dot3">.</span></div>
+              </div>
+              <div class="wf-connector hidden" id="wfConn1"></div>
+              <div class="wf-step hidden" data-step="2" id="wfStep2">
+                <div class="wf-step-header">
+                  <span class="wf-status-dot idle"></span>
+                  <span class="wf-label">SpecGuard</span>
+                  <span class="wf-time">—</span>
+                </div>
+                <div class="wf-text">Items parsing pending</div>
+              </div>
+              <div class="wf-connector hidden" id="wfConn2"></div>
+              <div class="wf-step hidden" data-step="3" id="wfStep3">
+                <div class="wf-step-header">
+                  <span class="wf-status-dot idle"></span>
+                  <span class="wf-label">SpecGuard</span>
+                  <span class="wf-time">—</span>
+                </div>
+                <div class="wf-text">Expiry scheduling pending</div>
+              </div>
+              <div class="wf-connector hidden" id="wfConn3"></div>
+              <div class="wf-step hidden" data-step="4" id="wfStep4">
+                <div class="wf-step-header">
+                  <span class="wf-status-dot idle"></span>
+                  <span class="wf-label">Builder</span>
+                  <span class="wf-time">—</span>
+                </div>
+                <div class="wf-text">Storefront generation pending</div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div class="form-group">
-          <label for="reviewPostDrop">After Sold Out / Expired</label>
-          <select id="reviewPostDrop">
-            <option value="SOLD_OUT_PAGE">Show "Sold Out" page</option>
-            <option value="WAITLIST">Show waitlist signup</option>
-            <option value="TEARDOWN">Tear down storefront</option>
-          </select>
-          <span class="field-error" id="err-postDropAction"></span>
-        </div>
+      </div><!-- /hero-grid -->
 
-        <div id="reviewItems">
-          <!-- Items rendered by JS -->
-        </div>
-
-        <button type="button" class="btn-add-item" id="addItemBtn">+ Add Item</button>
-
-        <div class="review-actions">
-          <button type="button" class="btn btn-secondary" id="backBtn">Back</button>
-          <button type="button" class="btn btn-primary" id="confirmBtn">Confirm & Launch</button>
-        </div>
+      <div class="scroll-divider">
+        <a href="#drops" class="scroll-hint">
+          <span>View your drops</span>
+          <span class="scroll-hint-arrow">↓</span>
+        </a>
       </div>
     </section>
 
-    <!-- Pipeline Chatbox -->
-    <div id="pipeline" class="pipeline-chatbox hidden">
-      <div class="chatbox-header">
-        <div class="chatbox-title">
-          <span class="chatbox-dot"></span>
-          Pipeline Console
+    <!-- ── STEP 2: REVIEW (modal overlay) ─────── -->
+    <div class="review-overlay hidden" id="step2">
+      <div class="review-modal">
+        <h2>Review Your Drop</h2>
+        <p class="review-subtitle">We parsed your description. Review and fix any issues below.</p>
+
+        <div class="review-form">
+          <div class="form-group">
+            <label for="reviewDropName">Drop Name</label>
+            <input type="text" id="reviewDropName" placeholder="e.g. Art Print Drop">
+            <span class="field-error" id="err-dropName"></span>
+          </div>
+
+          <div class="form-group">
+            <label for="reviewEndDate">End Date &amp; Time</label>
+            <input type="datetime-local" id="reviewEndDate">
+            <span class="field-error" id="err-endDate"></span>
+          </div>
+
+          <div class="form-group">
+            <label for="reviewPostDrop">After Sold Out / Expired</label>
+            <select id="reviewPostDrop">
+              <option value="SOLD_OUT_PAGE">Show "Sold Out" page</option>
+              <option value="WAITLIST">Show waitlist signup</option>
+              <option value="TEARDOWN">Tear down storefront</option>
+            </select>
+            <span class="field-error" id="err-postDropAction"></span>
+          </div>
+
+          <div id="reviewItems">
+            <!-- Items rendered by JS -->
+          </div>
+
+          <button type="button" class="btn-add-item" id="addItemBtn">+ Add Item</button>
+
+          <div class="review-actions">
+            <button type="button" class="btn btn-secondary" id="backBtn">Back</button>
+            <button type="button" class="btn btn-primary" id="confirmBtn">Confirm &amp; Launch</button>
+          </div>
         </div>
-        <span class="chatbox-status" id="pipelineStatus">Running...</span>
       </div>
-      <div class="chatbox-body" id="events"></div>
     </div>
 
-    <!-- Stores List -->
-    <section class="stores-section">
-      <h2>Your Drops</h2>
+    <!-- ── YOUR DROPS ─────────────────────────────────────────────── -->
+    <section class="stores-section" id="drops" style="scroll-margin-top:80px">
+      <div class="stores-section-header">
+        <h2>Your Drops</h2>
+      </div>
       <div id="storesList" class="stores-list">
         <p class="empty">No drops yet. Create one above!</p>
       </div>
     </section>
 
-    <!-- Store Detail Modal -->
+    <!-- ── STORE DETAIL MODAL ─────────────────────────────────────── -->
     <div id="storeModal" class="modal hidden">
       <div class="modal-content">
         <button class="modal-close" onclick="closeModal()">&times;</button>
         <div id="storeDetail"></div>
       </div>
     </div>
-  </div>
+
+  </div><!-- /app -->
+
+  <!-- ── FOOTER ── -->
+  <footer class="site-footer">
+    <div class="footer-inner">
+
+      <!-- 4-column nav grid -->
+      <div class="footer-nav">
+        <div class="footer-col">
+          <h4 class="footer-col-heading">Launch</h4>
+          <ul class="footer-col-links">
+            <li><a href="#">Create a drop</a></li>
+            <li><a href="#drops">Your drops</a></li>
+            <li><a href="#">Example storefront</a></li>
+            <li><a href="#">Seller guide</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4 class="footer-col-heading">Workflow</h4>
+          <ul class="footer-col-links">
+            <li><a href="#">Detect items</a></li>
+            <li><a href="#">Schedule expiry</a></li>
+            <li><a href="#">Generate storefront</a></li>
+            <li><a href="#">Notify buyers</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4 class="footer-col-heading">Platform</h4>
+          <ul class="footer-col-links">
+            <li><a href="https://buildwithlocus.com" target="_blank">BuildWithLocus</a></li>
+            <li><a href="https://paywithlocus.com" target="_blank">PayWithLocus</a></li>
+            <li><a href="#">Agent pipeline</a></li>
+            <li><a href="https://github.com/sunilswain7/Popupstore" target="_blank">GitHub source</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4 class="footer-col-heading">Support</h4>
+          <ul class="footer-col-links">
+            <li><a href="#">FAQ</a></li>
+            <li><a href="#">Report issue</a></li>
+            <li><a href="#">Contact</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-sep"></div>
+
+      <!-- existing centered content -->
+      <div class="footer-brand">
+        <span class="footer-pixel">■</span>
+        <span class="footer-name">POPUPSTORE</span>
+      </div>
+      <p class="footer-tagline">Limited-time storefront infrastructure for creators.</p>
+      <p class="footer-sub">Describe your drop. Launch instantly. Agents handle the rest.</p>
+      <div class="footer-divider"></div>
+      <p class="footer-copy">&copy; 2026 PopupStore. Built for the BuildWithLocus hackathon.</p>
+    </div>
+  </footer>
 
   <script src="/js/app.js"></script>
+  <script>
+    // ── Progressive workflow step reveal ──
+    (function() {
+      const workflowIdle = document.getElementById('workflowIdle');
+      let currentStep = 1;  // Step 1 is already visible
+
+      // Helper: reveal a step with animation
+      function revealStep(stepNum) {
+        const conn = document.getElementById('wfConn' + (stepNum - 1));
+        const step = document.getElementById('wfStep' + stepNum);
+        if (!conn || !step) return;
+
+        // Show connector first, then step
+        conn.classList.remove('hidden');
+        requestAnimationFrame(() => {
+          conn.classList.add('wf-conn-visible');
+          setTimeout(() => {
+            step.classList.remove('hidden');
+            requestAnimationFrame(() => {
+              step.classList.add('wf-step-visible');
+              step.classList.add('wf-step-active');
+            });
+          }, 300);
+        });
+      }
+
+      // Mark a step as done (green dot, no pulse)
+      function markStepDone(stepNum) {
+        const step = document.getElementById('wfStep' + stepNum);
+        if (!step) return;
+        step.classList.remove('wf-step-active');
+        step.classList.add('wf-step-done');
+        // Update the text to show completion
+        const time = new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+        const timeEl = step.querySelector('.wf-time');
+        if (timeEl) timeEl.textContent = time;
+      }
+
+      // Advance workflow based on event type
+      function advanceWorkflow(type) {
+        if (type === 'system' && currentStep === 1) {
+          // Step 1 done (seller input received), reveal step 2
+          markStepDone(1);
+          currentStep = 2;
+          revealStep(2);
+        } else if (type === 'agent1' && currentStep <= 2) {
+          // SpecGuard parsing done, reveal step 3
+          if (currentStep < 2) { markStepDone(1); revealStep(2); }
+          markStepDone(2);
+          currentStep = 3;
+          revealStep(3);
+        } else if ((type === 'agent1' || type === 'agent2') && currentStep <= 3) {
+          // Expiry scheduling done, reveal step 4
+          if (currentStep < 3) { markStepDone(2); revealStep(3); }
+          markStepDone(3);
+          currentStep = 4;
+          revealStep(4);
+        } else if (type === 'success' || (type === 'agent2' && currentStep >= 4)) {
+          // All done
+          markStepDone(4);
+          currentStep = 5;
+        }
+      }
+
+      // Hook into addChat to trigger step reveals
+      const origAddChat = window.addChat;
+      window.addChat = function(type, message) {
+        // Hide the idle workflow on first real event
+        if (workflowIdle && workflowIdle.style.display !== 'none') {
+          workflowIdle.style.display = 'none';
+        }
+        origAddChat(type, message);
+        advanceWorkflow(type);
+      };
+    })();
+  </script>
 </body>
 </html>

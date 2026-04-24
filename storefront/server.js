@@ -2,15 +2,15 @@ const express = require('express');
 const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 8081;
 
 // Env vars injected by Agent 2
 const config = {
   storeId: process.env.STORE_ID || 'demo-store',
-  dropName: process.env.DROP_NAME || process.env.PRODUCT_NAME || 'Demo Drop',
+  dropName: process.env.DROP_NAME || process.env.PRODUCT_NAME || 'Art Prints & Postcards Drop',
   dropStatus: process.env.DROP_STATUS || 'ACTIVE',
   postDropAction: process.env.POST_DROP_ACTION || 'SOLD_OUT_PAGE',
-  endDate: process.env.END_DATE || '',
+  endDate: process.env.END_DATE || new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
   showWaitlist: process.env.SHOW_WAITLIST === 'true',
   inventoryApiUrl: process.env.INVENTORY_API_URL || '',
   checkoutBaseUrl: process.env.CHECKOUT_BASE_URL || 'https://checkout.paywithlocus.com',
@@ -25,14 +25,24 @@ try {
 }
 if (items.length === 0) {
   // Legacy single-item fallback
-  items = [{
-    id: 'legacy',
-    productName: process.env.PRODUCT_NAME || 'Product',
-    price: parseFloat(process.env.PRICE_USDC || '0'),
-    inventoryTotal: parseInt(process.env.INVENTORY_TOTAL || '0', 10),
-    checkoutSessionId: process.env.CHECKOUT_SESSION_ID || '',
-    imageUrl: process.env.IMAGE_URL || '',
-  }];
+  items = [
+    {
+      id: 'item-1',
+      productName: 'Framed Illustration',
+      price: 95,
+      inventoryTotal: 5,
+      checkoutSessionId: '',
+      imageUrl: '',
+    },
+    {
+      id: 'item-2',
+      productName: 'Postcard Set',
+      price: 12,
+      inventoryTotal: 25,
+      checkoutSessionId: '',
+      imageUrl: '',
+    }
+  ];
 }
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -106,7 +116,7 @@ function renderPage() {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${esc(config.dropName)} — PopupStore</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Pixelify+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Silkscreen:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     :root {
@@ -172,7 +182,7 @@ function renderPage() {
     }
     .brand {
       display: inline-flex; align-items: center; gap: 0.65rem;
-      font-family: 'Pixelify Sans', sans-serif; font-weight: 700;
+      font-family: 'Silkscreen', sans-serif; font-weight: 700;
       font-size: 1.1rem; color: var(--ink); letter-spacing: -0.01em;
     }
     .status-pill {
@@ -203,7 +213,7 @@ function renderPage() {
       display: grid; grid-template-columns: 1fr auto; gap: 1.5rem; align-items: center;
     }
     .hero h1 {
-      font-family: 'Pixelify Sans', sans-serif; font-weight: 700;
+      font-family: 'Silkscreen', sans-serif; font-weight: 700;
       font-size: clamp(1.65rem, 4.4vw, 2.4rem); line-height: 1.1;
       color: var(--ink); margin-bottom: 0.5rem; letter-spacing: -0.01em;
     }
@@ -248,7 +258,7 @@ function renderPage() {
     .stat { padding: 1rem 1.2rem; border-right: 2px solid var(--rule); }
     .stat:last-child { border-right: none; }
     .stat b {
-      display: block; font-family: 'Pixelify Sans', sans-serif; font-weight: 700;
+      display: block; font-family: 'Silkscreen', sans-serif; font-weight: 700;
       font-size: 0.74rem; letter-spacing: 0.1em; text-transform: uppercase;
       color: var(--muted); margin-bottom: 6px;
     }
@@ -266,7 +276,7 @@ function renderPage() {
 
     /* Section heading */
     .eyebrow {
-      font-family: 'Pixelify Sans', sans-serif; font-weight: 700;
+      font-family: 'Silkscreen', sans-serif; font-weight: 700;
       font-size: 0.86rem; letter-spacing: 0.08em; color: var(--ink);
       text-transform: uppercase; display: inline-flex; align-items: center; gap: 0.5rem;
     }
@@ -317,11 +327,11 @@ function renderPage() {
     .item-card:nth-child(3n+3) .item-image-placeholder { background: var(--violet-soft); }
     .item-body { padding: 1rem 1.15rem 1.15rem; display: flex; flex-direction: column; flex: 1; }
     .item-name {
-      font-family: 'Pixelify Sans', sans-serif; font-weight: 700;
+      font-family: 'Silkscreen', sans-serif; font-weight: 700;
       font-size: 1.2rem; margin-bottom: 0.35rem; letter-spacing: -0.01em; color: var(--ink);
     }
     .item-price {
-      font-family: 'Pixelify Sans', sans-serif; font-weight: 700;
+      font-family: 'Silkscreen', sans-serif; font-weight: 700;
       font-size: 1.4rem; color: var(--pink-dk); margin-bottom: 0.5rem;
       font-variant-numeric: tabular-nums;
     }
@@ -340,7 +350,7 @@ function renderPage() {
       display: block; width: 100%; margin-top: auto;
       padding: 0.78rem; text-align: center;
       background: var(--pink); color: #fff;
-      font-family: 'Pixelify Sans', sans-serif; font-weight: 700; font-size: 1rem;
+      font-family: 'Silkscreen', sans-serif; font-weight: 700; font-size: 1rem;
       letter-spacing: 0.02em;
       border: 2px solid var(--ink); border-radius: 6px;
       text-decoration: none; cursor: pointer;
@@ -362,7 +372,7 @@ function renderPage() {
       margin-bottom: 1.5rem;
     }
     .message-box h2 {
-      font-family: 'Pixelify Sans', sans-serif; font-weight: 700;
+      font-family: 'Silkscreen', sans-serif; font-weight: 700;
       font-size: 1.4rem; margin-bottom: 0.4rem; color: var(--ink); letter-spacing: -0.01em;
     }
     .waitlist-form {
@@ -378,7 +388,7 @@ function renderPage() {
     .waitlist-form button {
       padding: 0.65rem 1.25rem; border-radius: 6px;
       background: var(--pink); color: #fff; border: 2px solid var(--ink);
-      font-family: 'Pixelify Sans', sans-serif; font-weight: 700; font-size: 0.92rem;
+      font-family: 'Silkscreen', sans-serif; font-weight: 700; font-size: 0.92rem;
       cursor: pointer; box-shadow: 3px 3px 0 var(--ink);
       transition: transform .1s, box-shadow .1s;
     }
@@ -388,7 +398,7 @@ function renderPage() {
     /* How to buy */
     .how { padding: 1.75rem; margin-bottom: 1rem; }
     .how h2 {
-      font-family: 'Pixelify Sans', sans-serif; font-weight: 700;
+      font-family: 'Silkscreen', sans-serif; font-weight: 700;
       font-size: 1.55rem; color: var(--ink); letter-spacing: -0.01em; margin-bottom: 0.3rem;
     }
     .how-sub { font-size: 0.92rem; color: var(--muted); margin-bottom: 1.25rem; }
@@ -404,12 +414,12 @@ function renderPage() {
       display: inline-grid; place-items: center;
       width: 30px; height: 30px; margin-bottom: 0.5rem;
       background: var(--card); border: 2px solid var(--ink); border-radius: 50%;
-      font-family: 'Pixelify Sans', sans-serif; font-weight: 700;
+      font-family: 'Silkscreen', sans-serif; font-weight: 700;
       font-size: 1rem; color: var(--ink);
       box-shadow: 2px 2px 0 var(--ink);
     }
     .step h3 {
-      font-family: 'Pixelify Sans', sans-serif; font-weight: 700;
+      font-family: 'Silkscreen', sans-serif; font-weight: 700;
       font-size: 1.05rem; color: var(--ink); margin-bottom: 0.3rem; letter-spacing: -0.01em;
     }
     .step p { font-size: 0.84rem; color: var(--ink); line-height: 1.45; opacity: 0.85; }
@@ -433,9 +443,92 @@ function renderPage() {
       font-family: 'Inter', sans-serif; font-size: 0.82rem; color: var(--muted);
     }
     .powered-by a { color: var(--pink-dk); text-decoration: none; font-weight: 600; border-bottom: 1px dotted var(--pink-dk); }
+    /* ── NAVBAR ── */
+    .navbar {
+      position:sticky;top:0;z-index:200;
+      background:linear-gradient(90deg,var(--violet-dk) 0%,var(--ink) 100%);
+      border-bottom:3px solid var(--ink);
+      box-shadow:0 4px 0 rgba(0,0,0,.15);
+    }
+    .navbar-inner {
+      max-width:1200px;margin:0 auto;
+      padding:.85rem 2rem;
+      display:flex;align-items:center;justify-content:space-between;
+    }
+    .navbar-brand {
+      display:flex;align-items:center;gap:.55rem;
+      font-family:'Silkscreen',sans-serif;font-size:1.55rem;
+      font-weight:700;color:#fff;letter-spacing:-.01em;
+    }
+    .brand-pixel{color:var(--cyan);font-size:1rem;}
+    .navbar-links {
+      list-style:none;display:flex;align-items:center;gap:.25rem;
+    }
+    .nav-link {
+      display:inline-block;padding:.45rem .95rem;
+      font-family:'Silkscreen',sans-serif;font-size:.9rem;font-weight:600;
+      color:rgba(255,255,255,.8);text-decoration:none;
+      background:transparent;border:none;cursor:pointer;
+      border-radius:6px;
+      transition:background .15s,color .15s;
+    }
+    .nav-link:hover{background:rgba(255,255,255,.1);color:#fff;}
+    .nav-signout{color:var(--pink);border:2px solid var(--pink);padding:.4rem .8rem;}
+    .nav-signout:hover{background:var(--pink);color:#fff;}
+
+    /* ── SITE FOOTER ── */
+    .site-footer {
+      background: linear-gradient(90deg, var(--violet-dk) 0%, var(--ink) 100%);
+      border-top: 3px solid var(--ink);
+      margin-top: 3rem;
+    }
+    .footer-inner {
+      max-width: 1200px; margin: 0 auto;
+      padding: 2.5rem 2rem 2rem;
+      display: flex; flex-direction: column; gap: .65rem;
+    }
+    .footer-brand { display: flex; align-items: center; gap: .55rem; margin-bottom: .25rem; }
+    .footer-pixel { color: var(--cyan); font-size: 1rem; }
+    .footer-name { font-family: 'Silkscreen', sans-serif; font-size: 1.45rem; font-weight: 700; letter-spacing: .08em; color: #fff; }
+    .footer-tagline { font-family: 'Silkscreen', sans-serif; font-size: 1rem; font-weight: 600; color: var(--cyan-soft); letter-spacing: .02em; }
+    .footer-sub { font-family: 'Inter', sans-serif; font-size: .88rem; color: rgba(255,255,255,.55); max-width: 480px; line-height: 1.6; }
+    .footer-divider {
+      width: 60px; height: 3px; margin: .5rem auto;
+      background-image: repeating-linear-gradient(to right, var(--cyan) 0 12px, var(--ink) 12px 14px, var(--pink) 14px 26px, var(--ink) 26px 28px, var(--yellow) 28px 40px, var(--ink) 40px 42px, var(--violet) 42px 54px, var(--ink) 54px 56px);
+      border-radius: 2px;
+    }
+    .footer-copy { font-family: 'Inter', sans-serif; font-size: .75rem; color: rgba(255,255,255,.35); letter-spacing: .04em; }
+
+    /* FOOTER NAV GRID */
+    .footer-nav {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 2rem; width: 100%; padding-bottom: 2.5rem;
+    }
+    .footer-col-heading {
+      font-family: 'Silkscreen', sans-serif; font-size: 1rem; font-weight: 700; color: #fff; letter-spacing: .06em; margin-bottom: .9rem; text-transform: uppercase;
+    }
+    .footer-col-links { list-style: none; display: flex; flex-direction: column; gap: .5rem; }
+    .footer-col-links a {
+      font-family: 'Inter', system-ui, sans-serif; font-size: .88rem; color: rgba(255,255,255,.6); text-decoration: none; display: inline-block; transition: color .15s, transform .15s;
+    }
+    .footer-col-links a:hover { color: #fff; transform: translateX(3px); }
+    .footer-sep {
+      width: 100%; height: 2px; margin-bottom: 2rem;
+      background-image: repeating-linear-gradient(to right, var(--cyan) 0 18px, rgba(255,255,255,.08) 18px 22px, var(--pink) 22px 40px, rgba(255,255,255,.08) 40px 44px, var(--yellow) 44px 62px, rgba(255,255,255,.08) 62px 66px, var(--violet) 66px 84px, rgba(255,255,255,.08) 84px 88px);
+    }
+    .footer-brand, .footer-tagline, .footer-sub, .footer-divider, .footer-copy { align-self: center; text-align: center; }
+    @media(max-width:720px){ .footer-nav { grid-template-columns: repeat(2, 1fr); } }
+    @media(max-width:420px){ .footer-nav { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <div class="navbar-brand">
+        <span class="brand-pixel">■</span>
+        <span class="brand-name">PopupStore</span>
+      </div>
+    </div>
+  </nav>
   <div class="page">
     <div class="top-bar">
       <span class="brand">PopupStore
@@ -529,6 +622,61 @@ function renderPage() {
 
     <div class="powered-by">Powered by <a href="https://buildwithlocus.com">BuildWithLocus</a> + <a href="https://paywithlocus.com">PaywithLocus</a></div>
   </div>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <!-- Retro footer nav structure -->
+      <div class="footer-nav">
+        <div class="footer-col">
+          <h4 class="footer-col-heading">Launch</h4>
+          <ul class="footer-col-links">
+            <li><a href="#">Drop builder</a></li>
+            <li><a href="#">Integrations</a></li>
+            <li><a href="#">Example storefront</a></li>
+            <li><a href="#">Seller guide</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4 class="footer-col-heading">Workflow</h4>
+          <ul class="footer-col-links">
+            <li><a href="#">Detect items</a></li>
+            <li><a href="#">Schedule expiry</a></li>
+            <li><a href="#">Generate storefront</a></li>
+            <li><a href="#">Notify buyers</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4 class="footer-col-heading">Platform</h4>
+          <ul class="footer-col-links">
+            <li><a href="https://buildwithlocus.com" target="_blank">BuildWithLocus</a></li>
+            <li><a href="https://paywithlocus.com" target="_blank">PayWithLocus</a></li>
+            <li><a href="#">Agent pipeline</a></li>
+            <li><a href="https://github.com/sunilswain7/Popupstore" target="_blank">GitHub source</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4 class="footer-col-heading">Support</h4>
+          <ul class="footer-col-links">
+            <li><a href="#">FAQ</a></li>
+            <li><a href="#">Report issue</a></li>
+            <li><a href="#">Contact</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-sep"></div>
+
+      <!-- existing centered content -->
+      <div class="footer-brand">
+        <span class="footer-pixel">■</span>
+        <span class="footer-name">POPUPSTORE</span>
+      </div>
+      <p class="footer-tagline">Limited-time storefront infrastructure for creators.</p>
+      <p class="footer-sub">Describe your drop. Launch instantly. Agents handle the rest.</p>
+      <div class="footer-divider"></div>
+      <p class="footer-copy">&copy; 2026 PopupStore. Built for the BuildWithLocus hackathon.</p>
+    </div>
+  </footer>
 
   <script>
     const endDate = "${config.endDate}";
