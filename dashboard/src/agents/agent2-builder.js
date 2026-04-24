@@ -59,19 +59,8 @@ async function runBuilder(spec, storeId) {
     const item = s.items[i];
     emit('agent2:progress', { message: `Setting up item ${i + 1}/${s.items.length}: ${item.productName}...` }, storeId);
 
-    // Generate image if requested
+    // Image generation disabled
     let imageUrl = null;
-    if (item.generateImage && item.imagePrompt) {
-      try {
-        const imgResult = await callLocusPay('POST', '/wrapped/fal/generate', {
-          prompt: item.imagePrompt,
-          model: 'fast-sdxl',
-        });
-        imageUrl = imgResult.data?.images?.[0]?.url || null;
-      } catch (err) {
-        console.error(`Image generation failed for item ${i + 1}:`, err.message);
-      }
-    }
 
     // Create checkout session for this item
     const checkoutResult = await callLocusPay('POST', '/checkout/sessions', {

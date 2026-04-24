@@ -70,8 +70,8 @@ Return a JSON object with these fields:
   - productName (string or null)
   - price (number or null)
   - inventory (integer or null)
-  - generateImage (boolean, default false)
-  - imagePrompt (string or null)
+  - generateImage: always false (image generation disabled)
+  - imagePrompt: always null (image generation disabled)
 - endDate (ISO 8601 string or null) — shared across all items
 - postDropAction ("WAITLIST" | "SOLD_OUT_PAGE" | "TEARDOWN" or null) — shared across all items
 
