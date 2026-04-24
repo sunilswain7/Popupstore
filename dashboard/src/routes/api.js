@@ -102,7 +102,7 @@ router.get('/inventory/:storeId', async (req, res) => {
     select: { id: true, productName: true, inventoryRemaining: true, inventoryTotal: true },
   });
   if (items.length === 0) return res.status(404).json({ error: 'Store not found' });
-  res.json({ items });
+  res.json({ items: items.map(i => ({ id: i.id, productName: i.productName, remaining: i.inventoryRemaining, total: i.inventoryTotal })) });
 });
 
 // Analytics — pull visitor/click data from storefront logs via Locus Build Logs API
