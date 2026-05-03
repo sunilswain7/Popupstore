@@ -1,7 +1,5 @@
 # PopupStore
 
-> Describe a drop in one sentence. Get a live USDC storefront in minutes.
-
 PopupStore turns natural-language drop descriptions into fully-deployed, autonomous e-commerce storefronts powered by USDC payments. A creator types something like *"Sell 20 signed prints at $25 and 50 stickers at $5, drop ends Sunday"* and three agents take it from there — validating the spec, provisioning a storefront on Locus Build, and monitoring the drop until it sells out.
 
 Built for the **BuildWithLocus** hackathon, integrating [Locus Build](https://buildwithlocus.com) for deployment and [PaywithLocus](https://paywithlocus.com) for USDC checkout.
